@@ -1,0 +1,272 @@
+# Rock Diet (روك دايت) — Project Documentation for AI Agents
+
+> **Last Updated:** 2026-08-09
+> **Read this file FIRST before making any changes.**
+
+---
+
+## 🚀 Project Overview
+
+**Rock Diet** is a **React 19 + Vite** single-page application for a **healthy gourmet meal delivery service** based in Cairo, Egypt (brand name: روك دايت). It is currently a **frontend-only prototype** — no backend, no database, no authentication. All data is served from hardcoded JavaScript arrays.
+
+The app markets chef-crafted nutritious meals with macro tracking (protein/carbs/fat), fast delivery, and diet plans (Healthy Bowls, High Protein, Keto & Low Carb, Detox & Juices).
+
+---
+
+## 🛠 Tech Stack
+
+| Layer      | Technology                                                                    | Version         |
+| ---------- | ----------------------------------------------------------------------------- | --------------- |
+| Framework  | React (StrictMode)                                                            | ^19.2.8         |
+| Build Tool | Vite                                                                          | ^8.2.0          |
+| Routing    | React Router DOM                                                              | ^7.18.2         |
+| Styling    | Tailwind CSS (v4, via `@tailwindcss/vite` plugin — **no tailwind.config.js**) | ^4.3.3          |
+| Icons      | lucide-react                                                                  | ^1.31.0         |
+| Utilities  | clsx + tailwind-merge                                                         | ^2.1.1 / ^3.6.0 |
+| Linter     | oxlint                                                                        | ^1.75.0         |
+
+**Entry point:** `index.html` → `src/main.jsx` → `src/App.jsx`
+
+---
+
+## 📁 File Structure
+
+```
+TC1/
+├── index.html                     → HTML entry, title "Rock Diet", logo favicon
+├── package.json                   → Scripts & dependencies
+├── vite.config.js                 → React + Tailwind v4 plugins
+├── public/
+│   ├── favicon.svg
+│   ├── icons.svg
+│   └── rock-diet-logo.png
+└── src/
+    ├── main.jsx                   → React root render (imports index.css)
+    ├── App.jsx                    → Router configuration
+    ├── index.css                  → Tailwind @theme tokens + global styles ⭐
+    ├── App.css                    → EMPTY — do not add global styles here
+    ├── assets/                    → Local images (logo, hero)
+    ├── components/
+    │   ├── Navbar.jsx             → Sticky header, desktop + mobile drawer
+    │   └── Footer.jsx             → Site footer
+    └── pages/
+        ├── Home.jsx               → Landing page (hero, categories, gallery, map, CTA)
+        ├── Menu.jsx               → Interactive menu (filters, search, add-to-cart)
+        └── Orders.jsx             → Order tracking (active + history tabs)
+```
+
+---
+
+## 🎨 THEME SYSTEM (CRITICAL — Read This!)
+
+All colors are defined as **Tailwind v4 `@theme` tokens** in `src/index.css`. **NEVER use hardcoded color classes** (`bg-gray-*`, `text-teal-*`, `bg-amber-*`, hex values, etc.).
+
+### Current Teal Theme (`src/index.css`)
+
+```css
+@theme {
+  /* Primary brand — teal */
+  --color-primary: #0d7377; /* Main CTAs, active nav, headlines highlight */
+  --color-primary-light: #5eead4; /* Hover states, lighter variant */
+  --color-secondary: #0fa68b; /* Secondary brand green */
+  --color-accent: #14b8a6; /* Sparingly: price tags, star ratings, small highlights */
+
+  /* Text on brand colors */
+  --color-on-primary: #ffffff; /* Text on primary bg */
+  --color-on-primary-muted: #d9f5f2; /* Muted text on primary bg */
+
+  /* Neutrals */
+  --color-bg: #f5f7f7; /* Page backgrounds */
+  --color-surface: #ffffff; /* Cards, inputs, elevated surfaces */
+  --color-text: #1a2e2e; /* Headings, body text */
+  --color-text-secondary: #5c6b68; /* Muted/secondary text */
+  --color-border: #e2e8e6; /* Borders, dividers */
+  --color-disabled: #c4cac7; /* Disabled states */
+
+  /* Macro / data colors */
+  --color-protein: #0d7377; /* Protein badge */
+  --color-carbs: #f5b700; /* Carbs badge */
+  --color-fat: #3b82f6; /* Fat badge */
+
+  /* Semantic */
+  --color-success: #16a34a; /* Delivered state, added-to-cart */
+  --color-warning: #f59e0b; /* Spicy badge */
+  --color-error: #dc2626; /* Error / destructive actions */
+}
+```
+
+### Usage Mapping
+
+| Intended Use              | Utility Classes                           |
+| ------------------------- | ----------------------------------------- |
+| Primary CTAs / active nav | `bg-primary` / `text-primary`             |
+| Hover on primary          | `hover:bg-primary-light`                  |
+| Headings / dark text      | `text-text`                               |
+| Body / muted text         | `text-text-secondary`                     |
+| Page backgrounds          | `bg-bg`                                   |
+| Cards / surfaces          | `bg-surface` (or `bg-bg` for card bg)     |
+| Borders / dividers        | `border-border`                           |
+| Text on brand colors      | `text-on-primary`                         |
+| Price tags / star ratings | `text-accent` / `fill-accent` (SPARINGLY) |
+| Protein badge             | `bg-protein/10 text-protein`              |
+| Carbs badge               | `bg-carbs/10 text-carbs`                  |
+| Fat badge                 | `bg-fat/10 text-fat`                      |
+| Success state             | `bg-success text-white`                   |
+| Warning / spicy           | `bg-warning text-white`                   |
+| Error                     | `text-error`                              |
+| Breadcrumb/CTA accents    | `text-accent`                             |
+
+---
+
+## 🧭 Routing
+
+| Path      | Component      | Description                        |
+| --------- | -------------- | ---------------------------------- |
+| `/`       | `Home.jsx`     | Landing page                       |
+| `/menu`   | `Menu.jsx`     | Meal catalog with filtering/search |
+| `/orders` | `Orders.jsx`   | Order tracking                     |
+| `*`       | Redirect → `/` | Fallback                           |
+
+Configured in `src/App.jsx` with `BrowserRouter`, wrapped in `min-h-screen bg-bg text-text` shell with `Navbar` and `Footer`.
+
+---
+
+## 📄 Page Guide for AI Agents
+
+### 1. `src/pages/Home.jsx` — Landing Page
+
+Sections in order:
+
+1. **Hero (100vh)** — Full-viewport background image + dark gradient overlay. Contains:
+   - Entrance animations via `useState`/`useEffect` (`visible` state triggers opacity/translate transitions)
+   - Announcement pill, headline with SVG underline accent, CTAs
+   - Trust indicators (customer avatars + star rating)
+   - Right side: glassmorphic product card with floating badges (bounce-slow animation)
+   - Scroll indicator that smooth-scrolls to `#categories`
+2. **Categories** — shadcn-style Cards (media on top, body below). 4 diet-plan cards:
+   - Card structure: `flex flex-col overflow-hidden rounded-xl border border-border bg-bg`
+   - Media: `h-64` image with hover zoom
+   - Body: `p-5`, tag (accent), title, item count
+   - Action overlay: circle arrow appears on group-hover
+3. **Popular Meals (Gallery Grid)** — Masonry via CSS columns (`columns-1 sm:columns-2 lg:columns-3`)
+   - White border frames (`border-4 border-white`), varying heights (`h-72`, `h-96`, `h-64`)
+   - Badge (left) + price pill (right) always visible
+   - Hover overlay slides up (`translate-y-full → group-hover:translate-y-0`) showing: calories, name, desc, macro chips, Order Now button
+4. **Why Rock Diet** — Dark teal section (`bg-secondary`), 6 feature cards with icons
+5. **Map Section** — Embedded Google Maps iframe (Cairo) + location info card
+6. **CTA Banner** — Gradient (`from-primary to-primary-light`) repeat-order promo
+
+**Entrance animation pattern to maintain:**
+
+```jsx
+const [visible, setVisible] = useState(false);
+useEffect(() => {
+  const timer = setTimeout(() => setVisible(true), 100);
+  return () => clearTimeout(timer);
+}, []);
+// Then on elements: className={`... ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+```
+
+### 2. `src/pages/Menu.jsx` — Menu Page
+
+- **Data:** `MENU_ITEMS` array (8 items) with `id`, `name`, `category`, `price`, `rating`, `calories`, `macros {protein, carbs, fat}`, `description`, `image`, `spicy`, `bestseller`
+- **Categories:** `['All', 'Bowls', 'Protein', 'Keto', 'Wraps', 'Smoothies']`
+- **State:** `selectedCategory`, `searchQuery`, `addedItems` (per-item count object)
+- **Features:**
+  - Category tab filtering (client-side)
+  - Live search (name + description)
+  - Add to cart: button shows "Added (n)" with check icon when count > 0
+  - Spicy badge uses `bg-warning`, Bestseller uses `bg-primary`
+  - Star rating uses `text-accent fill-accent`
+  - Macro badges: protein → `bg-surface text-primary`, carbs → `bg-carbs/10 text-carbs`, fat → `bg-fat/10 text-fat`
+  - Empty state with Reset Filters button
+
+### 3. `src/pages/Orders.jsx` — Orders Page
+
+- **Data:** `ACTIVE_ORDERS` (1) and `PAST_ORDERS` (2) constant arrays
+- **Tabs:** Active / History via `activeTab` state
+- **Active order card:** header with order ID + status pill, ETA, 4-step progress bar (Confirmed → Preparing → On The Way → Delivered), itemized details, courier info, address, total
+- **Progress bar:** absolute positioned track + step circles (`bg-primary` for current/done, `bg-surface` for pending)
+- **Past orders:** condensed cards with Delivered badge (`bg-success/10 text-success border-success/30`) + Reorder button
+
+---
+
+## 🧩 Components
+
+### `src/components/Navbar.jsx`
+
+- Sticky top header (`sticky top-0 z-50`)
+- Desktop: brand logo + nav links (active = `bg-primary text-white`, inactive = `text-text-secondary hover:text-primary`)
+- "Order Now" CTA (accent bg)
+- Mobile: hamburger toggles drawer (state: `isOpen`), drawer slides down with nav links + CTA
+- Uses `NavLink` for active route detection (`end` prop on Home)
+
+### `src/components/Footer.jsx`
+
+- 4-column grid: Brand (logo + tagline), Quick Links, Diet Plans, Why Rock Diet
+- Icons use `text-primary` (or `text-teal-600`)
+- Simple centered copyright bar
+
+---
+
+## ⚙️ Scripts
+
+```bash
+npm run dev       # Start dev server (Vite)
+npm run build     # Production build
+npm run preview   # Preview production build
+npm run lint      # Oxlint
+```
+
+---
+
+## 🚫 RULES FOR AI AGENTS
+
+1. **ALWAYS use theme tokens** — never hardcode Tailwind color classes (gray-_, teal-_, amber-\*, etc.) or hex values in className strings. Use `bg-primary`, `text-text-secondary`, `border-border`, etc.
+2. **No global styles in `App.css`** — it's intentionally empty. Global styles live in `index.css` only.
+3. **Do NOT change layout/spacing/component structure** when fixing color issues — only swap color classes.
+4. **Keep the entrance animation pattern** in Home.jsx consistent (visible state + transition classes).
+5. **All page data is frontend-only** — mock data lives in-component as constant arrays. If adding a backend, this is where integration would happen.
+6. **Run `npm run build` after every edit** to verify no parse errors.
+7. **The 64px sticky navbar** means hero height = `calc(100vh - 64px)` — keep this.
+8. **Keep `clsx` + `tailwind-merge` available** — installed but currently unused; intended for future shadcn-style component utilities.
+9. **No shadcn/ui installed** — cards are hand-rolled with shadcn anatomy (Card Media / Card Body / Card Action overlay).
+10. **Home page uses Unsplash CDN images** — external URLs, not local assets.
+
+---
+
+## 🔮 Future Roadmap (as inferred)
+
+- Add backend (Node/Express or MongoDB via `mongosh`) — currently frontend-only
+- Real cart / checkout flow (currently "Add" only increments local counters)
+- Payment processing
+- User authentication
+- State management (Context/Zustand/Redux) — currently component-local state
+- Replace Unsplash images with real product photography
+
+---
+
+## 📝 Change Log
+
+| Date       | File(s) Modified            | Change                                                                                                                                                            |
+| ---------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-09 | `src/index.css`             | Updated `@theme` to teal palette: `primary: #0D7377`, `accent: #14B8A6`, `bg: #F5F7F7`, added `on-primary` tokens                                                 |
+| 2026-08-09 | `src/pages/Home.jsx`        | Redesigned landing page: 100vh hero with bg image, entrance animations, gallery grid for Popular Meals, map section, repeat-order CTA                             |
+| 2026-08-09 | `src/pages/Home.jsx`        | Categories section converted to shadcn-style Card structure (media + body + action overlay), cards enlarged (`h-64`, `text-xl`, `p-5`)                            |
+| 2026-08-09 | `src/pages/Menu.jsx`        | Fixed all hardcoded color classes → theme tokens (`bg-primary`, `text-text`, `border-border`, etc.)                                                               |
+| 2026-08-09 | `src/pages/Orders.jsx`      | Fixed all hardcoded color classes → theme tokens                                                                                                                  |
+| 2026-08-09 | `src/components/Footer.jsx` | Fixed remaining hardcoded color classes → theme tokens (`text-gray-700` → `text-text`, `text-teal-600` → `text-primary`, `text-gray-500` → `text-text-secondary`) |
+| 2026-08-09 | `src/components/Navbar.jsx` | Updated to `bg-bg`/`bg-primary`/`text-on-primary` theme tokens                                                                                                    |
+| 2026-08-09 | `src/App.jsx`               | Updated wrapper to `bg-bg text-text selection:bg-primary`                                                                                                         |
+| 2026-08-09 | `package.json`              | Added `clsx` + `tailwind-merge` dependencies                                                                                                                      |
+| 2026-08-09 | `AGENTS.md`                 | Created this documentation file                                                                                                                                   |
+
+---
+
+## 🏁 Quick Start
+
+```bash
+npm install     # install dependencies
+npm run dev     # start dev server
+npm run build   # verify production build (run after every edit!)
+```

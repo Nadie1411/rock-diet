@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary brand */
+  --color-primary: #0D7377;
+  --color-primary-light: #5EEAD4;
+  --color-secondary: #0FA68B;
+  --color-accent: #14B8A6;
+
+  /* Text on brand colors */
+  --color-on-primary: #FFFFFF;
+  --color-on-primary-muted: #D9F5F2;
+
+  /* Neutrals */
+  --color-bg: #F5F7F7;
+  --color-surface: #FFFFFF;
+  --color-text: #1A2E2E;
+  --color-text-secondary: #5C6B68;
+  --color-border: #E2E8E6;
+  --color-disabled: #C4CAC7;
+
+  /* Macro / data colors */
+  --color-protein: #0D7377;
+  --color-carbs: #F5B700;
+  --color-fat: #3B82F6;
+
+  /* Semantic */
+  --color-success: #16A34A;
+  --color-warning: #F59E0B;
+  --color-error: #DC2626;
+
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes bounce-slow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s ease-in-out infinite;
+}
