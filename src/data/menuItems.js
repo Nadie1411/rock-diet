@@ -2,7 +2,7 @@ export const MENU_ITEMS = [
   {
     id: 101,
     name: 'Avocado & Quinoa Power Bowl',
-    category: 'Bowls',
+    category: 'Breakfast',
     price: 14.50,
     rating: 4.9,
     calories: '450 kcal',
@@ -15,7 +15,7 @@ export const MENU_ITEMS = [
   {
     id: 102,
     name: 'Grilled Chicken Protein Plate',
-    category: 'Protein',
+    category: 'Lunch',
     price: 16.99,
     rating: 4.8,
     calories: '520 kcal',
@@ -28,7 +28,7 @@ export const MENU_ITEMS = [
   {
     id: 103,
     name: 'Wild Salmon Power Bowl',
-    category: 'Bowls',
+    category: 'Dinner',
     price: 19.50,
     rating: 5.0,
     calories: '580 kcal',
@@ -41,7 +41,7 @@ export const MENU_ITEMS = [
   {
     id: 104,
     name: 'Keto Steak & Cauliflower Mash',
-    category: 'Keto',
+    category: 'Dinner',
     price: 22.50,
     rating: 4.9,
     calories: '620 kcal',
@@ -54,7 +54,7 @@ export const MENU_ITEMS = [
   {
     id: 105,
     name: 'Spicy Tuna Poke Bowl',
-    category: 'Bowls',
+    category: 'Lunch',
     price: 17.00,
     rating: 4.7,
     calories: '490 kcal',
@@ -67,7 +67,7 @@ export const MENU_ITEMS = [
   {
     id: 106,
     name: 'Mediterranean Veggie Wrap',
-    category: 'Wraps',
+    category: 'Lunch',
     price: 12.99,
     rating: 4.6,
     calories: '380 kcal',
@@ -80,7 +80,7 @@ export const MENU_ITEMS = [
   {
     id: 107,
     name: 'Green Detox Smoothie Bowl',
-    category: 'Smoothies',
+    category: 'Breakfast',
     price: 10.50,
     rating: 4.8,
     calories: '290 kcal',
@@ -93,7 +93,7 @@ export const MENU_ITEMS = [
   {
     id: 108,
     name: 'Cold-Pressed Green Juice',
-    category: 'Smoothies',
+    category: 'Snack',
     price: 7.50,
     rating: 4.5,
     calories: '120 kcal',

@@ -3,7 +3,7 @@ import { Search, Plus, Check, Flame, Leaf, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { MENU_ITEMS } from '../data/menuItems';
 
-const CATEGORIES = ['All', 'Bowls', 'Protein', 'Keto', 'Wraps', 'Smoothies'];
+const CATEGORIES = ['All', 'Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function Menu() {
   const [selectedCategory, setSelectedCategory] = useState('All');

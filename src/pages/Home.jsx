@@ -14,10 +14,41 @@ import {
   CheckCircle2,
   MapPin,
   Star,
+  ChevronLeft,
+  ChevronRight,
+  Tag,
 } from "lucide-react";
 
 export default function Home() {
+  const specialOffers = [
+    {
+      id: 1,
+      title: "Get 20% Off Your First Order",
+      desc: "Enjoy chef-crafted healthy meals delivered to your door. Fresh, organic ingredients only.",
+      code: "ROCK20",
+      tag: "WELCOME DEAL",
+      image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: 2,
+      title: "Free Delivery On Orders Over $30",
+      desc: "Cairo wide fast delivery directly from our gourmet kitchen. Valid for a limited time.",
+      code: "FREESHIP",
+      tag: "LIMITED OFFER",
+      image: "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: 3,
+      title: "Buy 3 Bowls, Get 1 Smoothie Free",
+      desc: "Mix and match any of our signature healthy bowls and get a delicious detox smoothie on us.",
+      code: "BOWLPLUS",
+      tag: "SPECIAL BUNDLE",
+      image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80",
+    },
+  ];
+
   const [visible, setVisible] = useState(false);
+  const [currentOffer, setCurrentOffer] = useState(0);
 
   useEffect(() => {
     // Trigger entrance animations
@@ -25,30 +56,37 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentOffer((prev) => (prev + 1) % specialOffers.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [specialOffers.length]);
+
   const featuredCategories = [
     {
-      name: "Healthy Bowls",
+      name: "Breakfast",
       count: "14 Items",
       image:
         "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=500&q=80",
       tag: "Fresh & Balanced",
     },
     {
-      name: "High Protein",
+      name: "Lunch",
       count: "18 Items",
       image:
         "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80",
       tag: "Build Muscle",
     },
     {
-      name: "Keto & Low Carb",
+      name: "Dinner",
       count: "12 Items",
       image:
         "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=500&q=80",
       tag: "Zero Guilt",
     },
     {
-      name: "Detox & Juices",
+      name: "Snack",
       count: "9 Items",
       image:
         "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=500&q=80",
@@ -392,21 +430,19 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Masonry gallery grid */}
-          <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 [column-fill:_balance]">
-            {popularDishes.map((dish, idx) => (
+          {/* Uniform grid layout */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {popularDishes.map((dish) => (
               <div
                 key={dish.id}
-                className="mb-6 break-inside-avoid group"
+                className="group"
               >
                 <div className="relative overflow-hidden border-4 border-white shadow-lg hover:shadow-2xl transition-shadow duration-500">
                   {/* Image */}
                   <img
                     src={dish.image}
                     alt={dish.name}
-                    className={`w-full object-cover transition-transform duration-700 group-hover:scale-110 ${
-                      idx % 3 === 0 ? "h-72" : idx % 3 === 1 ? "h-96" : "h-64"
-                    }`}
+                    className="w-full h-72 object-cover transition-transform duration-700 group-hover:scale-110"
                   />
 
                   {/* Badge */}
@@ -455,6 +491,104 @@ export default function Home() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= SPECIAL OFFERS CAROUSEL ================= */}
+      <section className="py-20 bg-surface border-t border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <div className="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-widest mb-3">
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              <span>Exclusive Promotions</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-text">
+              Special Offers & Deals
+            </h2>
+            <p className="text-text-secondary mt-3 text-sm">
+              Eat clean and save smart with our weekly chef specials and discounts.
+            </p>
+          </div>
+
+          {/* Carousel Wrapper */}
+          <div className="relative max-w-4xl mx-auto overflow-hidden rounded-3xl bg-bg border border-border shadow-xl">
+            {/* Carousel Slides */}
+            <div
+              className="flex transition-transform duration-700 ease-in-out"
+              style={{ transform: `translateX(-${currentOffer * 100}%)` }}
+            >
+              {specialOffers.map((offer) => (
+                <div
+                  key={offer.id}
+                  className="w-full shrink-0 flex flex-col md:flex-row items-stretch"
+                >
+                  {/* Left Side: Info & Promo Code */}
+                  <div className="flex-1 p-8 sm:p-12 flex flex-col justify-center space-y-6">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
+                        {offer.tag}
+                      </span>
+                    </div>
+                    
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-text leading-tight">
+                      {offer.title}
+                    </h3>
+                    
+                    <p className="text-text-secondary text-sm leading-relaxed">
+                      {offer.desc}
+                    </p>
+
+                  </div>
+
+                  {/* Right Side: Image Show */}
+                  <div className="w-full md:w-5/12 h-64 md:h-auto relative overflow-hidden group/img">
+                    <img
+                      src={offer.image}
+                      alt={offer.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-110"
+                    />
+                    {/* Shadow overlay to fade image into left info card */}
+                    <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-bg via-transparent to-transparent" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Navigation buttons */}
+            <button
+              onClick={() =>
+                setCurrentOffer((prev) => (prev - 1 + specialOffers.length) % specialOffers.length)
+              }
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 border border-border text-text hover:text-primary hover:border-primary flex items-center justify-center shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-10"
+              aria-label="Previous Offer"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={() =>
+                setCurrentOffer((prev) => (prev + 1) % specialOffers.length)
+              }
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 border border-border text-text hover:text-primary hover:border-primary flex items-center justify-center shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-10"
+              aria-label="Next Offer"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+
+            {/* Indicator Dots */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+              {specialOffers.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentOffer(idx)}
+                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                    currentOffer === idx ? "bg-primary w-5" : "bg-disabled hover:bg-text-secondary"
+                  }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </section>
