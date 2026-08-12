@@ -8,13 +8,17 @@ import {
   X,
   User,
   LogOut,
+  ShieldCheck,
+  ShoppingCart,
 } from "lucide-react";
 import rockDietLogo from "../assets/rock-diet-logo.png";
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, isAdmin, logout } = useAuth();
+  const { cartItemCount, openCart } = useCart();
   const navigate = useNavigate();
 
   const toggleMenu = () => setIsOpen(!isOpen);
@@ -31,6 +35,10 @@ export default function Navbar() {
     { name: "Menu", path: "/menu", icon: BookOpen },
     { name: "Orders", path: "/orders", icon: ShoppingBag },
   ];
+
+  if (isAdmin) {
+    navItems.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-bg border-b border-border shadow-sm">
@@ -76,8 +84,22 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Right Action Button */}
+          {/* Right Action Buttons */}
           <div className="hidden md:flex items-center gap-3">
+            {/* Cart Icon Button */}
+            <button
+              onClick={openCart}
+              className="relative p-2.5 rounded-lg text-text-secondary hover:text-primary hover:bg-surface transition-colors"
+              aria-label="View Cart"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {cartItemCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-accent text-on-primary text-[10px] font-extrabold flex items-center justify-center border-2 border-bg shadow-sm animate-pulse">
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
+
             {isAuthenticated && user ? (
               <>
                 <Link
@@ -116,8 +138,21 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
+          {/* Mobile menu & Cart buttons */}
+          <div className="md:hidden flex items-center gap-2">
+            <button
+              onClick={openCart}
+              className="relative p-2 rounded-lg text-text-secondary hover:text-primary hover:bg-surface focus:outline-none transition-colors"
+              aria-label="View Cart"
+            >
+              <ShoppingCart className="w-6 h-6" />
+              {cartItemCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-accent text-on-primary text-[10px] font-extrabold flex items-center justify-center border-2 border-bg shadow-sm">
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={toggleMenu}
               type="button"

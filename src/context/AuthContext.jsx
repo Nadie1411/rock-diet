@@ -80,10 +80,13 @@ export function AuthProvider({ children }) {
     setIsAuthenticated(false);
   }, []);
 
+  const isAdmin = user?.role === 'admin';
+
   const value = {
     user,
     loading,
     isAuthenticated,
+    isAdmin,
     login,
     signup,
     confirmEmail,

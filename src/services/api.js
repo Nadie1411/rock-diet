@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.BACK_END || 'http://localhost:3000/';
+const BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.BACK_END || 'http://localhost:3000/';
 
 class ApiError extends Error {
   constructor(message, status, data) {
@@ -54,13 +54,19 @@ const refreshAccessToken = async () => {
 
 const request = async (path, { method = 'GET', body, headers = {}, auth = false } = {}) => {
   const url = `${BASE_URL}${path.replace(/^\//, '')}`;
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+
+  const optionsHeaders = isFormData
+    ? { ...headers }
+    : { 'Content-Type': 'application/json', ...headers };
+
   const options = {
     method,
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: optionsHeaders,
   };
 
   if (body !== undefined) {
-    options.body = JSON.stringify(body);
+    options.body = isFormData ? body : JSON.stringify(body);
   }
 
   if (auth) {
@@ -89,7 +95,8 @@ const request = async (path, { method = 'GET', body, headers = {}, auth = false 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new ApiError(data.message || 'Request failed', res.status, data);
+    const errorMsg = data.message || 'Request failed';
+    throw new ApiError(errorMsg, res.status, data);
   }
 
   return data;
