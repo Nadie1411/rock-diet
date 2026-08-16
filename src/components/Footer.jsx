@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShieldCheck, Truck, Clock } from 'lucide-react';
+import { ShieldCheck, Truck, Clock } from 'lucide-react';
 import rockDietLogo from '../assets/rock-diet-logo.png';
 
 export default function Footer() {

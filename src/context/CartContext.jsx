@@ -19,7 +19,7 @@ export function CartProvider({ children }) {
     try {
       setLoading(true);
       const res = await cartService.getCart();
-      setCart(res.data);
+      setCart(res.data?.cart ?? res.data);
     } catch {
       setCart(null);
     } finally {
@@ -42,11 +42,27 @@ export function CartProvider({ children }) {
     try {
       setError('');
       const res = await cartService.addToCart(productId, quantity);
-      setCart(res.data);
+      setCart(res.data?.cart ?? res.data);
       openCart();
       return res;
     } catch (err) {
       setError(err.message || 'Failed to add item to cart');
+      throw err;
+    }
+  };
+
+  const addOfferToCart = async (offerId) => {
+    if (!isAuthenticated) {
+      throw new Error('Please login to add this offer to your cart.');
+    }
+    try {
+      setError('');
+      const res = await cartService.addOfferToCart(offerId);
+      setCart(res.data?.cart ?? res.data);
+      openCart();
+      return res;
+    } catch (err) {
+      setError(err.message || 'Failed to add offer to cart');
       throw err;
     }
   };
@@ -56,7 +72,7 @@ export function CartProvider({ children }) {
     try {
       setError('');
       const res = await cartService.updateCartItem(productId, quantity);
-      setCart(res.data);
+      setCart(res.data?.cart ?? res.data);
       return res;
     } catch (err) {
       setError(err.message || 'Failed to update item quantity');
@@ -69,7 +85,7 @@ export function CartProvider({ children }) {
     try {
       setError('');
       const res = await cartService.removeCartItem(productId);
-      setCart(res.data);
+      setCart(res.data?.cart ?? res.data);
       return res;
     } catch (err) {
       setError(err.message || 'Failed to remove item');
@@ -82,7 +98,7 @@ export function CartProvider({ children }) {
     try {
       setError('');
       const res = await cartService.clearCart();
-      setCart(res.data);
+      setCart(res.data?.cart ?? res.data);
       return res;
     } catch (err) {
       setError(err.message || 'Failed to clear cart');
@@ -109,6 +125,7 @@ export function CartProvider({ children }) {
     closeCart,
     toggleCart,
     addToCart,
+    addOfferToCart,
     updateQuantity,
     removeItem,
     clearCart,

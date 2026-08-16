@@ -74,7 +74,13 @@ export function AuthProvider({ children }) {
     return res;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      // Revoke token on backend
+      await authService.logout();
+    } catch {
+      // Even if backend revoke fails, clear local tokens
+    }
     api.clearTokens();
     setUser(null);
     setIsAuthenticated(false);

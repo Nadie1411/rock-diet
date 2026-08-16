@@ -24,8 +24,8 @@ export default function Navbar() {
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     closeMenu();
     navigate("/");
   };
@@ -87,18 +87,18 @@ export default function Navbar() {
           {/* Right Action Buttons */}
           <div className="hidden md:flex items-center gap-3">
             {/* Cart Icon Button */}
-            <button
-              onClick={openCart}
-              className="relative p-2.5 rounded-lg text-text-secondary hover:text-primary hover:bg-surface transition-colors"
-              aria-label="View Cart"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {cartItemCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-accent text-on-primary text-[10px] font-extrabold flex items-center justify-center border-2 border-bg shadow-sm animate-pulse">
-                  {cartItemCount}
-                </span>
-              )}
-            </button>
+       <button
+  onClick={openCart}
+  className="relative p-2.5 rounded-lg text-text-secondary hover:text-primary hover:bg-surface transition-colors translate-x-4"
+  aria-label="View Cart"
+>
+  <ShoppingCart className="w-5 h-5" />
+  {cartItemCount > 0 && (
+    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-accent text-on-primary text-[10px] font-extrabold flex items-center justify-center border-2 border-bg shadow-sm animate-pulse">
+      {cartItemCount}
+    </span>
+  )}
+</button>
 
             {isAuthenticated && user ? (
               <>

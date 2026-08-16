@@ -25,8 +25,8 @@ export default function Profile() {
     );
   }
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -81,7 +81,7 @@ export default function Profile() {
           </div>
 
           {/* User Details */}
-          <div className="grid sm:grid-cols-2 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-lg bg-bg flex items-center justify-center shrink-0">
                 <User className="w-4 h-4 text-primary" />
@@ -101,16 +101,56 @@ export default function Profile() {
                 <p className="text-sm font-semibold text-text mt-0.5 break-all">{user.email}</p>
               </div>
             </div>
+
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-lg bg-bg flex items-center justify-center shrink-0">
                 <Calendar className="w-4 h-4 text-primary" />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Age</p>
-                <p className="text-sm font-semibold text-text mt-0.5">{user.age ? `${user.age} years` : '—'}</p>
+                <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Age & Gender</p>
+                <p className="text-sm font-semibold text-text mt-0.5 capitalize">
+                  {user.age ? `${user.age} yrs` : '—'} · {user.gender || '—'}
+                </p>
               </div>
             </div>
           </div>
+
+          {/* Health & Diet Metrics Section */}
+          {(user.weight || user.calories) && (
+            <div className="mt-6 pt-6 border-t border-border space-y-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-primary">Daily Macro & Calorie Targets</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-bg border border-border rounded-xl p-3 text-center">
+                  <span className="text-[10px] font-semibold text-text-secondary uppercase">Daily Calories</span>
+                  <p className="text-lg font-extrabold text-primary mt-0.5">{user.calories ? `${user.calories} kcal` : '—'}</p>
+                </div>
+                <div className="bg-bg border border-border rounded-xl p-3 text-center">
+                  <span className="text-[10px] font-semibold text-protein uppercase">Protein Target</span>
+                  <p className="text-lg font-extrabold text-protein mt-0.5">{user.protein ? `${user.protein}g` : '—'}</p>
+                </div>
+                <div className="bg-bg border border-border rounded-xl p-3 text-center">
+                  <span className="text-[10px] font-semibold text-carbs uppercase">Carbs Target</span>
+                  <p className="text-lg font-extrabold text-carbs mt-0.5">{user.carbs ? `${user.carbs}g` : '—'}</p>
+                </div>
+                <div className="bg-bg border border-border rounded-xl p-3 text-center">
+                  <span className="text-[10px] font-semibold text-fat uppercase">Fats Target</span>
+                  <p className="text-lg font-extrabold text-fat mt-0.5">{user.fats ? `${user.fats}g` : '—'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 pt-2 text-xs text-text-secondary">
+                <div className="bg-bg/50 px-3 py-2 rounded-lg border border-border">
+                  <strong>Body Weight:</strong> {user.weight ? `${user.weight} kg` : '—'}
+                </div>
+                <div className="bg-bg/50 px-3 py-2 rounded-lg border border-border">
+                  <strong>Height:</strong> {user.height ? `${user.height} cm` : '—'}
+                </div>
+                <div className="bg-bg/50 px-3 py-2 rounded-lg border border-border">
+                  <strong>Calculated BMI:</strong> {user.BMI || '—'}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick Links */}

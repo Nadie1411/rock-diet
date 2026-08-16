@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight, MapPin, Phone, FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight, MapPin, Phone, FileText, CheckCircle2, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { orderService } from '../services/orderService';
+import { couponService } from '../services/couponService';
+import { offerService } from '../services/offerService';
 import { ApiError } from '../services/api';
 
 export default function CartDrawer() {
@@ -16,6 +18,25 @@ export default function CartDrawer() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [placedOrder, setPlacedOrder] = useState(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [availableOffers, setAvailableOffers] = useState([]);
+
+  // Load active offers for promo-code discovery
+  useEffect(() => {
+    let mounted = true;
+    offerService
+      .getOffers({ active: true })
+      .then((res) => {
+        if (mounted) setAvailableOffers(res.data || []);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -29,24 +50,51 @@ export default function CartDrawer() {
     e.preventDefault();
     setError('');
 
-    if (!address.trim() || !phone.trim()) {
-      setError('Please provide both delivery address and phone number.');
+    const trimmedAddress = address.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedAddress) {
+      setError('Please provide your delivery address.');
+      return;
+    }
+    if (trimmedAddress.length < 5) {
+      setError('Delivery address must be at least 5 characters.');
+      return;
+    }
+    if (!trimmedPhone) {
+      setError('Please provide your phone number.');
+      return;
+    }
+    if (trimmedPhone.length < 8) {
+      setError('Phone number must be at least 8 characters.');
       return;
     }
 
     setLoading(true);
     try {
       const res = await orderService.createOrder({
-        address: address.trim(),
-        phone: phone.trim(),
+        address: trimmedAddress,
+        phone: trimmedPhone,
         note: note.trim() || undefined,
+        ...(appliedCoupon?.code && { couponCode: appliedCoupon.code }),
       });
-      setPlacedOrder(res.data);
-      setStep('success');
+      const data = res.data || {};
+      const order = data.order || {};
+      setPlacedOrder(order);
       await clearCart();
+      // If backend returns a payment URL (Stripe Checkout), redirect to it
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+        return;
+      }
+      setStep('success');
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || 'Failed to place order.');
+        if (err.data?.error?.length) {
+          setError(err.data.error.map((e) => e.message).join(' '));
+        } else {
+          setError(err.message || 'Failed to place order.');
+        }
       } else {
         setError('Network error. Please try again.');
       }
@@ -60,6 +108,38 @@ export default function CartDrawer() {
     setStep('cart');
     navigate('/orders');
   };
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    setCouponError('');
+    setError('');
+    try {
+      const res = await couponService.validateCoupon(couponCode.trim(), subtotal);
+      setAppliedCoupon(res.data);
+      setCouponCode('');
+    } catch (err) {
+      setAppliedCoupon(null);
+      setCouponError(err.message || 'Invalid coupon code.');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError('');
+  };
+
+  const handleApplyOfferCode = (code) => {
+    setCouponCode(code);
+    setAppliedCoupon(null);
+    setCouponError('');
+  };
+
+  const displaySubtotal = appliedCoupon?.discountAmount
+    ? Math.max(0, subtotal - appliedCoupon.discountAmount)
+    : subtotal;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -197,10 +277,102 @@ export default function CartDrawer() {
                     ))}
                   </div>
                   <div className="pt-2 border-t border-border flex justify-between text-sm font-extrabold text-text">
-                    <span>Total</span>
+                    <span>Subtotal</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
+                  {appliedCoupon && (
+                    <div className="flex justify-between items-center text-xs font-semibold">
+                      <span className="inline-flex items-center gap-1 text-success">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Coupon {appliedCoupon.code} applied
+                      </span>
+                      <span className="text-success">-${appliedCoupon.discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center text-sm font-extrabold text-text">
+                    <span>Total</span>
+                    <span className="text-primary">${displaySubtotal.toFixed(2)}</span>
+                  </div>
                 </div>
+
+                {/* Coupon Input */}
+                <div className="bg-surface border border-border rounded-xl p-3 space-y-2">
+                  <label className="block text-xs font-semibold text-text mb-1">
+                    Coupon Code
+                  </label>
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between bg-success/10 border border-success/30 rounded-lg px-3 py-2">
+                      <span className="text-xs font-bold text-success tracking-wide">{appliedCoupon.code}</span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="text-[10px] font-semibold text-error hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Enter promo code"
+                        className="flex-1 px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-bold tracking-widest"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={couponLoading || !couponCode.trim()}
+                        className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-1"
+                      >
+                        {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
+                      </button>
+                    </div>
+                  )}
+                  {couponError && (
+                    <p className="text-[10px] font-semibold text-error flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {couponError}
+                    </p>
+                  )}
+                </div>
+
+                {/* Available Promo Codes */}
+                {availableOffers.length > 0 && !appliedCoupon && (
+                  <div className="bg-surface border border-border rounded-xl p-3 space-y-2">
+                    <p className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Available Promo Codes
+                    </p>
+                    <div className="space-y-1.5">
+                      {availableOffers.map((offer) => (
+                        <button
+                          key={offer._id}
+                          type="button"
+                          onClick={() => handleApplyOfferCode(offer.promoCode)}
+                          disabled={!offer.promoCode}
+                          className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-bg border border-border hover:border-primary transition-colors text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-[10px] font-extrabold text-primary tracking-widest">
+                              {offer.promoCode}
+                            </span>
+                            <span className="block text-[10px] text-text-secondary truncate">
+                              {offer.title}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-[10px] font-bold text-warning">
+                            {offer.discountPercent > 0 && `${offer.discountPercent}% OFF`}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-text-secondary">
+                      Tap a code to apply it, then press Apply.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold text-text mb-1">
@@ -271,7 +443,7 @@ export default function CartDrawer() {
                         Placing Order...
                       </>
                     ) : (
-                      `Confirm Order ($${subtotal.toFixed(2)})`
+                      `Confirm Order ($${displaySubtotal.toFixed(2)})`
                     )}
                   </button>
                 </div>

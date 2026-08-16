@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2, Calendar } from 'lucide-react';
+import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2, Calendar, Scale, Ruler, Activity, Target } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../services/api';
 import rockDietLogo from '../assets/rock-diet-logo.png';
@@ -17,6 +17,11 @@ export default function Signup() {
     password: '',
     confirmPassword: '',
     age: '',
+    weight: '',
+    height: '',
+    gender: '',
+    goal: '',
+    activityLevel: 'moderate',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -29,8 +34,8 @@ export default function Signup() {
   };
 
   const validate = () => {
-    if (!form.userName || !form.email || !form.phoneNumber || !form.password || !form.confirmPassword) {
-      return 'Please fill in all required fields';
+    if (!form.userName || !form.email || !form.phoneNumber || !form.password || !form.confirmPassword || !form.age || !form.weight || !form.height || !form.gender || !form.goal) {
+      return 'Please fill in all required profile fields';
     }
     if (form.userName.trim().split(/\s+/).length < 2) {
       return 'Please enter your full name (first and last name)';
@@ -41,8 +46,14 @@ export default function Signup() {
     if (form.password !== form.confirmPassword) {
       return 'Passwords do not match';
     }
-    if (form.age && (Number(form.age) < 1 || Number(form.age) > 99)) {
+    if (Number(form.age) < 1 || Number(form.age) > 99) {
       return 'Age must be between 1 and 99';
+    }
+    if (Number(form.weight) < 1 || Number(form.weight) > 500) {
+      return 'Weight must be between 1 and 500 kg';
+    }
+    if (Number(form.height) < 50 || Number(form.height) > 250) {
+      return 'Height must be between 50 and 250 cm';
     }
     return '';
   };
@@ -65,7 +76,14 @@ export default function Signup() {
         phoneNumber: form.phoneNumber.trim(),
         password: form.password,
         confirmPassword: form.confirmPassword,
-        age: form.age ? Number(form.age) : undefined,
+        age: Number(form.age),
+        weight: Number(form.weight),
+        height: Number(form.height),
+        gender: form.gender,
+        goal: form.goal,
+        activityLevel: form.activityLevel,
+        package: 'Free Trial',
+        duration: '1 month',
       };
       await signup(data);
       // Navigate to OTP confirmation
@@ -179,24 +197,129 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Age */}
+            {/* Health & Diet Metrics Grid */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label htmlFor="age" className="block text-xs font-semibold text-text mb-1">
+                  Age *
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                  <input
+                    id="age"
+                    name="age"
+                    type="number"
+                    min="1"
+                    max="99"
+                    value={form.age}
+                    onChange={handleChange}
+                    placeholder="25"
+                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="gender" className="block text-xs font-semibold text-text mb-1">
+                  Gender *
+                </label>
+                <div className="relative">
+                  <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                  <select
+                    id="gender"
+                    name="gender"
+                    value={form.gender}
+                    onChange={handleChange}
+                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary font-medium"
+                    required
+                  >
+                    <option value="" disabled>Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="weight" className="block text-xs font-semibold text-text mb-1">
+                  Weight (kg) *
+                </label>
+                <div className="relative">
+                  <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                  <input
+                    id="weight"
+                    name="weight"
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={form.weight}
+                    onChange={handleChange}
+                    placeholder="70"
+                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="height" className="block text-xs font-semibold text-text mb-1">
+                  Height (cm) *
+                </label>
+                <div className="relative">
+                  <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                  <input
+                    id="height"
+                    name="height"
+                    type="number"
+                    min="50"
+                    max="250"
+                    value={form.height}
+                    onChange={handleChange}
+                    placeholder="175"
+                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
             <div>
-              <label htmlFor="age" className="block text-xs font-semibold text-text mb-1.5">
-                Age <span className="text-text-secondary font-normal">(optional)</span>
+              <label htmlFor="activityLevel" className="block text-xs font-semibold text-text mb-1">
+                Activity Level
+              </label>
+              <select
+                id="activityLevel"
+                name="activityLevel"
+                value={form.activityLevel}
+                onChange={handleChange}
+                className="w-full px-3.5 py-2.5 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary font-medium"
+              >
+                <option value="light">Light (1-3 days/week)</option>
+                <option value="moderate">Moderate (3-5 days/week)</option>
+                <option value="active">Active (6-7 days/week)</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="goal" className="block text-xs font-semibold text-text mb-1">
+                Fitness Goal *
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-                <input
-                  id="age"
-                  name="age"
-                  type="number"
-                  min="1"
-                  max="99"
-                  value={form.age}
+                <Target className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                <select
+                  id="goal"
+                  name="goal"
+                  value={form.goal}
                   onChange={handleChange}
-                  placeholder="25"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                />
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary font-medium"
+                  required
+                >
+                  <option value="" disabled>Select Fitness Goal</option>
+                  <option value="weight_loss">Weight Loss (Deficit -500 kcal)</option>
+                  <option value="maintenance">Maintenance (Balanced)</option>
+                  <option value="bulking">Bulking (Surplus +300 kcal)</option>
+                </select>
               </div>
             </div>
 

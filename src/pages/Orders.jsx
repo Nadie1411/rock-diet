@@ -3,6 +3,7 @@ import { Package, Clock, CheckCircle2, Truck, RefreshCw, MapPin, Loader2, AlertC
 import { Link, useNavigate } from 'react-router-dom';
 import { orderService } from '../services/orderService';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { ApiError } from '../services/api';
 
 const STATUS_STEPS = {
@@ -15,6 +16,7 @@ const STATUS_STEPS = {
 export default function Orders() {
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const { openCart } = useCart();
 
   const [activeTab, setActiveTab] = useState('active');
   const [orders, setOrders] = useState([]);
@@ -91,6 +93,18 @@ export default function Orders() {
       setError(err.message || 'Failed to cancel order.');
     } finally {
       setCancelingId(null);
+    }
+  };
+
+  const handleReorder = async (orderId) => {
+    setError('');
+    try {
+      await orderService.reorderOrder(orderId);
+      setSuccessMsg('Previous order items added to your cart.');
+      openCart();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      setError(err.message || 'Failed to reorder.');
     }
   };
 
@@ -279,9 +293,23 @@ export default function Orders() {
                     </div>
 
                     {/* Total */}
-                    <div className="pt-3 border-t border-border flex items-center justify-between">
-                      <span className="text-xs text-text-secondary">Total Amount</span>
-                      <span className="text-xl font-extrabold text-text">${order.totalPrice?.toFixed(2)}</span>
+                    <div className="pt-3 border-t border-border space-y-1.5">
+                      {order.couponCode && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-text-secondary">Coupon Applied</span>
+                          <span className="inline-flex items-center gap-1.5 text-success font-bold">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {order.couponCode}
+                            {order.discountAmount > 0 && (
+                              <span>-${order.discountAmount.toFixed(2)}</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-secondary">Total Amount</span>
+                        <span className="text-xl font-extrabold text-text">${order.totalPrice?.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -319,14 +347,25 @@ export default function Orders() {
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-5 pt-3 sm:pt-0 border-t sm:border-t-0 border-border">
-                    <span className="text-lg font-extrabold text-text">${order.totalPrice?.toFixed(2)}</span>
-                    <Link
-                      to="/menu"
+                    <div className="text-right">
+                      {order.couponCode && (
+                        <p className="text-[10px] font-bold text-success flex items-center justify-end gap-1 mb-0.5">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {order.couponCode}
+                          {order.discountAmount > 0 && (
+                            <span>-${order.discountAmount.toFixed(2)}</span>
+                          )}
+                        </p>
+                      )}
+                      <span className="text-lg font-extrabold text-text">${order.totalPrice?.toFixed(2)}</span>
+                    </div>
+                    <button
+                      onClick={() => handleReorder(order._id)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-semibold transition-colors shadow-sm"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                       <span>Reorder</span>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               ))

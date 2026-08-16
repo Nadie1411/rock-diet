@@ -5,22 +5,23 @@ import {
   ArrowDown,
   Leaf,
   TrendingUp,
-  Heart,
   Truck,
-  ShieldCheck,
   Clock,
   Sparkles,
   Flame,
   CheckCircle2,
   MapPin,
-  Star,
   ChevronLeft,
   ChevronRight,
-  Tag,
 } from "lucide-react";
+import { categoryService } from "../services/categoryService";
+import { productService } from "../services/productService";
+import { offerService } from "../services/offerService";
+import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import { ShoppingCart, Loader2 } from "lucide-react";
 
-export default function Home() {
-  const specialOffers = [
+const DEFAULT_OFFERS = [
     {
       id: 1,
       title: "Get 20% Off Your First Order",
@@ -31,8 +32,8 @@ export default function Home() {
     },
     {
       id: 2,
-      title: "Free Delivery On Orders Over $30",
-      desc: "Cairo wide fast delivery directly from our gourmet kitchen. Valid for a limited time.",
+      title: "Free Delivery On Orders Over 10 KWD",
+      desc: "Kuwait wide fast delivery directly from our gourmet kitchen. Valid for a limited time.",
       code: "FREESHIP",
       tag: "LIMITED OFFER",
       image: "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=800&q=80",
@@ -47,8 +48,16 @@ export default function Home() {
     },
   ];
 
+export default function Home() {
   const [visible, setVisible] = useState(false);
   const [currentOffer, setCurrentOffer] = useState(0);
+  const [liveCategories, setLiveCategories] = useState([]);
+  const [liveProducts, setLiveProducts] = useState([]);
+  const [liveOffers, setLiveOffers] = useState([]);
+  const [addingOfferId, setAddingOfferId] = useState(null);
+  const [offerError, setOfferError] = useState("");
+  const { addOfferToCart } = useCart();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     // Trigger entrance animations
@@ -56,50 +65,92 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
+  const offersToDisplay = liveOffers.length > 0
+    ? liveOffers.map((o) => ({
+        id: o._id,
+        title: o.title,
+        desc: o.description || '',
+        code: o.promoCode || '',
+        tag: o.tag || 'SPECIAL OFFER',
+        image: o.image?.secure_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+      }))
+    : DEFAULT_OFFERS;
+
   useEffect(() => {
+    if (offersToDisplay.length === 0) return;
     const timer = setInterval(() => {
-      setCurrentOffer((prev) => (prev + 1) % specialOffers.length);
+      setCurrentOffer((prev) => (prev + 1) % offersToDisplay.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, [specialOffers.length]);
+  }, [offersToDisplay.length]);
 
-  const featuredCategories = [
+  useEffect(() => {
+    const loadHomeData = async () => {
+      try {
+        const [catRes, prodRes, offerRes] = await Promise.all([
+          categoryService.getCategories(),
+          productService.getProducts({ limit: 6 }),
+          offerService.getOffers({ active: true }),
+        ]);
+        if (catRes.data && catRes.data.length > 0) {
+          setLiveCategories(catRes.data);
+        }
+        if (prodRes.data && prodRes.data.length > 0) {
+          setLiveProducts(prodRes.data);
+        }
+        if (offerRes.data && offerRes.data.length > 0) {
+          setLiveOffers(offerRes.data);
+        }
+      } catch {
+        // Fallback to initial display
+      }
+    };
+    loadHomeData();
+  }, []);
+
+  const defaultCategories = [
     {
       name: "Breakfast",
-      count: "14 Items",
-      image:
-        "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=500&q=80",
+      count: "Fresh & Healthy",
+      image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=500&q=80",
       tag: "Fresh & Balanced",
     },
     {
       name: "Lunch",
-      count: "18 Items",
-      image:
-        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80",
+      count: "High Protein",
+      image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80",
       tag: "Build Muscle",
     },
     {
       name: "Dinner",
-      count: "12 Items",
-      image:
-        "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=500&q=80",
+      count: "Low Carb",
+      image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=500&q=80",
       tag: "Zero Guilt",
     },
     {
       name: "Snack",
-      count: "9 Items",
-      image:
-        "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=500&q=80",
+      count: "Clean Energy",
+      image: "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=500&q=80",
       tag: "Clean Reset",
     },
   ];
 
-  const popularDishes = [
+  const categoriesToDisplay = liveCategories.length > 0
+    ? liveCategories.map((c) => ({
+        id: c._id,
+        name: c.name,
+        count: c.description || 'Diet Special',
+        image: c.image?.secure_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
+        tag: "Healthy Plan",
+      }))
+    : defaultCategories;
+
+  const defaultPopularDishes = [
     {
       id: 1,
       name: "Avocado & Quinoa Power Bowl",
       desc: "Organic quinoa, fresh avocado, poached egg & tahini.",
-      price: "$14.50",
+      price: "4.500 KWD",
       calories: "450 kcal",
       macros: { protein: "25g P", carbs: "45g C", fat: "18g F" },
       badge: "Breakfast",
@@ -110,7 +161,7 @@ export default function Home() {
       id: 2,
       name: "Herb Grilled Chicken & Greens",
       desc: "Free-range chicken, grilled asparagus & lemon vinaigrette.",
-      price: "$16.99",
+      price: "5.250 KWD",
       calories: "520 kcal",
       macros: { protein: "55g P", carbs: "30g C", fat: "15g F" },
       badge: "Lunch",
@@ -121,7 +172,7 @@ export default function Home() {
       id: 3,
       name: "Grilled Salmon Power Plate",
       desc: "Wild-caught salmon, broccoli, brown rice & sesame glaze.",
-      price: "$19.50",
+      price: "6.000 KWD",
       calories: "580 kcal",
       macros: { protein: "42g P", carbs: "38g C", fat: "22g F" },
       badge: "Dinner",
@@ -132,7 +183,7 @@ export default function Home() {
       id: 4,
       name: "Keto Steak & Cauliflower Mash",
       desc: "Grass-fed tenderloin, herb butter & grilled asparagus.",
-      price: "$22.50",
+      price: "7.000 KWD",
       calories: "620 kcal",
       macros: { protein: "48g P", carbs: "12g C", fat: "40g F" },
       badge: "Keto",
@@ -143,7 +194,7 @@ export default function Home() {
       id: 5,
       name: "Spicy Tuna Poke Bowl",
       desc: "Sushi-grade tuna, edamame, pickled ginger & sriracha.",
-      price: "$17.00",
+      price: "5.250 KWD",
       calories: "490 kcal",
       macros: { protein: "35g P", carbs: "42g C", fat: "16g F" },
       badge: "Spicy",
@@ -154,7 +205,7 @@ export default function Home() {
       id: 6,
       name: "Green Detox Smoothie Bowl",
       desc: "Spinach, banana, mango, chia seeds & granola.",
-      price: "$10.50",
+      price: "3.250 KWD",
       calories: "290 kcal",
       macros: { protein: "12g P", carbs: "38g C", fat: "8g F" },
       badge: "Vegan",
@@ -163,8 +214,46 @@ export default function Home() {
     },
   ];
 
+  const dishesToDisplay = liveProducts.length > 0
+    ? liveProducts.map((p) => {
+        const catObj = typeof p.categoryId === 'object' ? p.categoryId : null;
+        const totalCals = (p.protein || 0) * 4 + (p.carbs || 0) * 4 + (p.fats || 0) * 9;
+        return {
+          id: p._id,
+          name: p.name,
+          desc: p.description || 'Fresh chef-crafted healthy meal.',
+          price: `${p.price?.toFixed(2)} KWD`,
+          calories: totalCals > 0 ? `${totalCals} kcal` : 'Nutritious',
+          macros: {
+            protein: `${p.protein || 0}g P`,
+            carbs: `${p.carbs || 0}g C`,
+            fat: `${p.fats || 0}g F`,
+          },
+          badge: catObj ? catObj.name : 'Rock Diet',
+          image: p.image?.secure_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
+          linkTo: `/menu/${p._id}`,
+        };
+      })
+    : defaultPopularDishes;
+
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleOrderOffer = async (offerId) => {
+    if (!isAuthenticated) {
+      setOfferError("Please login to order this offer.");
+      return;
+    }
+    setOfferError("");
+    setAddingOfferId(offerId);
+    try {
+      await addOfferToCart(offerId);
+    } catch (err) {
+      setOfferError(err.message || "Failed to add offer to cart.");
+    } finally {
+      setAddingOfferId(null);
+    }
   };
 
   return (
@@ -300,7 +389,7 @@ export default function Home() {
                       </div>
                     </div>
                     <span className="text-lg font-extrabold text-primary">
-                      $19.50
+                      6.000 KWD
                     </span>
                   </div>
 
@@ -375,9 +464,9 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {featuredCategories.map((cat, idx) => (
+            {categoriesToDisplay.map((cat, idx) => (
               <Link
-                key={idx}
+                key={cat.id || idx}
                 to="/menu"
                 className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-bg text-text shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1.5"
               >
@@ -432,7 +521,7 @@ export default function Home() {
 
           {/* Uniform grid layout */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {popularDishes.map((dish) => (
+            {dishesToDisplay.map((dish) => (
               <div
                 key={dish.id}
                 className="group"
@@ -481,7 +570,7 @@ export default function Home() {
                     </div>
 
                     <Link
-                      to="/menu"
+                      to={dish.linkTo || "/menu"}
                       className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-accent hover:bg-primary-light text-white text-xs font-bold transition-all duration-300 hover:scale-105 active:scale-95"
                     >
                       <span>Order Now</span>
@@ -518,7 +607,7 @@ export default function Home() {
               className="flex transition-transform duration-700 ease-in-out"
               style={{ transform: `translateX(-${currentOffer * 100}%)` }}
             >
-              {specialOffers.map((offer) => (
+              {offersToDisplay.map((offer) => (
                 <div
                   key={offer.id}
                   className="w-full shrink-0 flex flex-col md:flex-row items-stretch"
@@ -539,6 +628,49 @@ export default function Home() {
                       {offer.desc}
                     </p>
 
+                    {offer.code && (
+                      <div className="inline-flex items-center gap-2 self-start bg-primary/10 border border-primary/20 rounded-lg px-4 py-2">
+                        <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Promo Code:</span>
+                        <span className="text-sm font-extrabold text-primary tracking-widest">{offer.code}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={() => handleOrderOffer(offer.id)}
+                        disabled={addingOfferId === offer.id}
+                        className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent hover:bg-primary-light text-white text-xs font-bold transition-all duration-300 hover:scale-105 active:scale-95 ${
+                          addingOfferId === offer.id ? "opacity-70 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        {addingOfferId === offer.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Adding...
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart className="w-4 h-4" />
+                            Order This Offer
+                          </>
+                        )}
+                      </button>
+                      {isAuthenticated && (
+                        <Link
+                          to="/menu"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-light"
+                        >
+                          Browse Menu
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      )}
+                    </div>
+
+                    {offerError && (
+                      <p className="text-xs font-semibold bg-error/10 text-error border border-error/20 rounded-lg px-3 py-2">
+                        {offerError}
+                      </p>
+                    )}
                   </div>
 
                   {/* Right Side: Image Show */}
@@ -558,7 +690,7 @@ export default function Home() {
             {/* Navigation buttons */}
             <button
               onClick={() =>
-                setCurrentOffer((prev) => (prev - 1 + specialOffers.length) % specialOffers.length)
+                setCurrentOffer((prev) => (prev - 1 + offersToDisplay.length) % offersToDisplay.length)
               }
               className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 border border-border text-text hover:text-primary hover:border-primary flex items-center justify-center shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-10"
               aria-label="Previous Offer"
@@ -568,7 +700,7 @@ export default function Home() {
 
             <button
               onClick={() =>
-                setCurrentOffer((prev) => (prev + 1) % specialOffers.length)
+                setCurrentOffer((prev) => (prev + 1) % offersToDisplay.length)
               }
               className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 border border-border text-text hover:text-primary hover:border-primary flex items-center justify-center shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-10"
               aria-label="Next Offer"
@@ -578,7 +710,7 @@ export default function Home() {
 
             {/* Indicator Dots */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
-              {specialOffers.map((_, idx) => (
+              {offersToDisplay.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setCurrentOffer(idx)}
@@ -610,7 +742,7 @@ export default function Home() {
             <div className="lg:col-span-2 relative rounded-2xl overflow-hidden border-4 border-white/10 shadow-2xl">
               <iframe
                 title="Rock Diet Location"
-                src="https://maps.google.com/maps?q=Cairo%2C%20Egypt&t=&z=12&ie=UTF8&iwloc=&output=embed"
+                src="https://maps.google.com/maps?q=Kuwait%20City%2C%20Kuwait&t=&z=12&ie=UTF8&iwloc=&output=embed"
                 className="w-full h-[320px] lg:h-full min-h-[320px] border-0"
                 loading="lazy"
                 allowFullScreen
@@ -623,7 +755,7 @@ export default function Home() {
                   Rock Diet HQ
                 </p>
                 <p className="text-white text-[11px] mt-0.5">
-                  Downtown Cairo, Egypt
+                  Kuwait City, Kuwait
                 </p>
               </div>
             </div>
@@ -649,7 +781,7 @@ export default function Home() {
                   <div>
                     <p className="text-white text-xs font-semibold">Address</p>
                     <p className="text-white text-[11px] mt-0.5">
-                      15 Tahrir Square, Downtown Cairo, Egypt
+                      15 Mubarak Al-Kabeer St, Kuwait City, Kuwait
                     </p>
                   </div>
                 </div>

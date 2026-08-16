@@ -17,4 +17,5 @@ export const orderService = {
   updateOrderStatus: (orderId, status) =>
     api.patch(`order/${orderId}/status`, { status }, { auth: true }),
   cancelOrder: (orderId) => api.delete(`order/${orderId}`, { auth: true }),
+  reorderOrder: (orderId) => api.post(`order/${orderId}/reorder`, {}, { auth: true }),
 };

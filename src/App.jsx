@@ -11,8 +11,11 @@ import Signup from './pages/Signup';
 import ConfirmEmail from './pages/ConfirmEmail';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentFailure from './pages/PaymentFailure';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -33,7 +36,9 @@ function App() {
                 <Route path="/confirm-email" element={<ConfirmEmail />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/admin" element={<Admin />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="/payment/success" element={<PaymentSuccess />} />
+                <Route path="/payment/failure" element={<PaymentFailure />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
             <Footer />
