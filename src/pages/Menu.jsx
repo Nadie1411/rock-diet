@@ -201,7 +201,7 @@ export default function Menu() {
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <span className="text-base font-extrabold text-text">${item.price.toFixed(2)}</span>
+                      <span className="text-base font-extrabold text-text">KD {item.price.toFixed(3)}</span>
 
                       <button
                         onClick={(e) => handleAddToCart(e, item._id)}

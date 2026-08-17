@@ -222,7 +222,7 @@ export default function Home() {
           id: p._id,
           name: p.name,
           desc: p.description || 'Fresh chef-crafted healthy meal.',
-          price: `${p.price?.toFixed(2)} KWD`,
+          price: `${p.price?.toFixed(3)} KD`,
           calories: totalCals > 0 ? `${totalCals} kcal` : 'Nutritious',
           macros: {
             protein: `${p.protein || 0}g P`,

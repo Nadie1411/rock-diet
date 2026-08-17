@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import {
   Layers,
   Package,
@@ -36,7 +36,8 @@ const COUPON_DISCOUNT_TYPES = ["percent", "fixed"];
 
 export default function Admin() {
   const { user, isAdmin, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState("products"); // 'categories' | 'products' | 'orders' | 'offers' | 'coupons'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "products"); // 'categories' | 'products' | 'orders' | 'offers' | 'coupons'
 
   // Categories state
   const [categories, setCategories] = useState([]);
@@ -590,7 +591,7 @@ export default function Admin() {
           {/* Navigation Tabs */}
           <div className="flex items-center gap-1 bg-bg p-1 rounded-lg border border-border shadow-sm">
             <button
-              onClick={() => setActiveTab("products")}
+              onClick={() => { setActiveTab("products"); setSearchParams({ tab: "products" }); }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
                 activeTab === "products"
                   ? "bg-primary text-white shadow-sm"
@@ -601,7 +602,7 @@ export default function Admin() {
               Products ({products.length})
             </button>
             <button
-              onClick={() => setActiveTab("categories")}
+              onClick={() => { setActiveTab("categories"); setSearchParams({ tab: "categories" }); }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
                 activeTab === "categories"
                   ? "bg-primary text-white shadow-sm"
@@ -612,7 +613,7 @@ export default function Admin() {
               Categories ({categories.length})
             </button>
             <button
-              onClick={() => setActiveTab("orders")}
+              onClick={() => { setActiveTab("orders"); setSearchParams({ tab: "orders" }); }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
                 activeTab === "orders"
                   ? "bg-primary text-white shadow-sm"
@@ -623,7 +624,7 @@ export default function Admin() {
               Orders ({orders.length})
             </button>
             <button
-              onClick={() => setActiveTab("offers")}
+              onClick={() => { setActiveTab("offers"); setSearchParams({ tab: "offers" }); }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
                 activeTab === "offers"
                   ? "bg-primary text-white shadow-sm"
@@ -634,7 +635,7 @@ export default function Admin() {
               Offers ({offers.length})
             </button>
             <button
-              onClick={() => setActiveTab("coupons")}
+              onClick={() => { setActiveTab("coupons"); setSearchParams({ tab: "coupons" }); }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
                 activeTab === "coupons"
                   ? "bg-primary text-white shadow-sm"
@@ -748,7 +749,7 @@ export default function Admin() {
                               </span>
                             </td>
                             <td className="py-3 px-4 font-extrabold text-primary">
-                              ${prod.price.toFixed(2)}
+                              KD {prod.price.toFixed(3)}
                             </td>
                             <td className="py-3 px-4 font-semibold">
                               <span
@@ -978,7 +979,7 @@ export default function Admin() {
                                   {it.quantity}x {it.name}
                                 </span>
                                 <span className="font-semibold text-text">
-                                  ${(it.price * it.quantity).toFixed(2)}
+                                  KD {(it.price * it.quantity).toFixed(3)}
                                 </span>
                               </div>
                             ))}
@@ -1014,7 +1015,7 @@ export default function Admin() {
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               {ord.couponCode}
                               {ord.discountAmount > 0 && (
-                                <span>-${ord.discountAmount.toFixed(2)}</span>
+                                <span>-KD {ord.discountAmount.toFixed(3)}</span>
                               )}
                             </span>
                           </div>
@@ -1022,7 +1023,7 @@ export default function Admin() {
                         <div className="flex justify-between items-center">
                           <span>Total Price</span>
                           <span className="text-primary text-base">
-                            ${ord.totalPrice?.toFixed(2)}
+                            KD {ord.totalPrice?.toFixed(3)}
                           </span>
                         </div>
                       </div>
@@ -1191,9 +1192,9 @@ export default function Admin() {
                           <td className="py-3 px-4 font-semibold">
                             {coupon.discountType === "percent"
                               ? `${coupon.discountValue}%`
-                              : `$${coupon.discountValue.toFixed(2)}`}
+                              : `KD ${coupon.discountValue.toFixed(3)}`}
                           </td>
-                          <td className="py-3 px-4">${coupon.minOrder?.toFixed(2)}</td>
+                          <td className="py-3 px-4">KD {coupon.minOrder?.toFixed(3)}</td>
                           <td className="py-3 px-4">
                             {coupon.expiryDate
                               ? new Date(coupon.expiryDate).toLocaleDateString()
@@ -1450,7 +1451,7 @@ export default function Admin() {
                                 />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs font-semibold text-text truncate">{prod.name}</p>
-                                  <p className="text-[10px] text-text-secondary">${prod.price?.toFixed(2)}</p>
+                                  <p className="text-[10px] text-text-secondary">KD {prod.price?.toFixed(3)}</p>
                                 </div>
                                 {isSelected && (
                                   <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
@@ -1506,7 +1507,7 @@ export default function Admin() {
                         />
                       </div>
                       <div>
-                        <label className="block font-semibold text-text mb-1">Min Order ($)</label>
+                        <label className="block font-semibold text-text mb-1">Min Order (KD)</label>
                         <input
                           type="number"
                           min="0"
@@ -1519,7 +1520,7 @@ export default function Admin() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block font-semibold text-text mb-1">Max Discount ($)</label>
+                        <label className="block font-semibold text-text mb-1">Max Discount (KD)</label>
                         <input
                           type="number"
                           min="0"
@@ -1584,7 +1585,7 @@ export default function Admin() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block font-semibold text-text mb-1">
-                          Price ($) *
+                          Price (KD) *
                         </label>
                         <input
                           type="number"

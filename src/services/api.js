@@ -8,42 +8,20 @@ class ApiError extends Error {
   }
 }
 
-const getToken = () => localStorage.getItem('access_token');
-const getRefreshToken = () => localStorage.getItem('refresh_token');
-
-const setTokens = ({ access_token, refresh_token }) => {
-  if (access_token) localStorage.setItem('access_token', access_token);
-  if (refresh_token) localStorage.setItem('refresh_token', refresh_token);
-};
-
-const clearTokens = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-};
-
 let refreshPromise = null;
 
 const refreshAccessToken = async () => {
-  const refresh_token = getRefreshToken();
-  if (!refresh_token) {
-    clearTokens();
-    throw new ApiError('No refresh token available', 401);
-  }
-
   if (!refreshPromise) {
     refreshPromise = fetch(`${BASE_URL}auth/refresh-token`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token }),
     })
       .then(async (res) => {
-        const data = await res.json();
         if (!res.ok) {
-          clearTokens();
-          throw new ApiError(data.message || 'Failed to refresh token', res.status, data);
+          throw new ApiError('Refresh failed', res.status);
         }
-        setTokens(data.data);
-        return data.data;
+        return await res.json();
       })
       .finally(() => {
         refreshPromise = null;
@@ -63,30 +41,20 @@ const request = async (path, { method = 'GET', body, headers = {}, auth = false 
   const options = {
     method,
     headers: optionsHeaders,
+    credentials: 'include',
   };
 
   if (body !== undefined) {
     options.body = isFormData ? body : JSON.stringify(body);
   }
 
-  if (auth) {
-    const token = getToken();
-    if (token) {
-      options.headers.Authorization = `bearer ${token}`;
-    }
-  }
-
   let res = await fetch(url, options);
 
-  // If 401 and auth required, try to refresh token once
   if (res.status === 401 && auth) {
     try {
       await refreshAccessToken();
-      const newToken = getToken();
-      options.headers.Authorization = `bearer ${newToken}`;
       res = await fetch(url, options);
     } catch {
-      clearTokens();
       window.dispatchEvent(new Event('auth:logout'));
       throw new ApiError('Session expired. Please login again.', 401);
     }
@@ -108,10 +76,6 @@ export const api = {
   patch: (path, body, options) => request(path, { ...options, method: 'PATCH', body }),
   put: (path, body, options) => request(path, { ...options, method: 'PUT', body }),
   delete: (path, options) => request(path, { ...options, method: 'DELETE' }),
-  setTokens,
-  clearTokens,
-  getToken,
-  getRefreshToken,
 };
 
 export { ApiError };

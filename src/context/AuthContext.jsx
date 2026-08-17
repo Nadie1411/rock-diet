@@ -9,22 +9,14 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Load user profile on mount if token exists
+  // Try to load profile on mount — if httpOnly cookie exists, this succeeds
   useEffect(() => {
-    const token = api.getToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
     const loadProfile = async () => {
       try {
         const res = await authService.getProfile();
         setUser(res.data);
         setIsAuthenticated(true);
       } catch {
-        // Token invalid or expired - clear
-        api.clearTokens();
         setUser(null);
         setIsAuthenticated(false);
       } finally {
@@ -46,10 +38,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (email, password) => {
+    // Backend sets httpOnly cookies in the response
     const res = await authService.login({ email, password });
-    api.setTokens(res.data);
     setIsAuthenticated(true);
-    // Fetch profile after login
     try {
       const profile = await authService.getProfile();
       setUser(profile.data);
@@ -76,12 +67,10 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      // Revoke token on backend
       await authService.logout();
     } catch {
-      // Even if backend revoke fails, clear local tokens
+      // Even if backend revoke fails, clear local state
     }
-    api.clearTokens();
     setUser(null);
     setIsAuthenticated(false);
   }, []);

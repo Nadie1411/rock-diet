@@ -219,7 +219,7 @@ export default function CartDrawer() {
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs font-bold text-text truncate">{prod.name}</h4>
                             <p className="text-xs font-extrabold text-primary mt-0.5">
-                              ${(prod.price || 0).toFixed(2)}
+                              KD {(prod.price || 0).toFixed(3)}
                             </p>
 
                             {/* Quantity Control */}
@@ -272,13 +272,13 @@ export default function CartDrawer() {
                     {items.map((it) => (
                       <div key={it.productId?._id} className="flex justify-between">
                         <span>{it.quantity}x {it.productId?.name}</span>
-                        <span className="font-semibold text-text">${((it.productId?.price || 0) * it.quantity).toFixed(2)}</span>
+                        <span className="font-semibold text-text">KD {((it.productId?.price || 0) * it.quantity).toFixed(3)}</span>
                       </div>
                     ))}
                   </div>
                   <div className="pt-2 border-t border-border flex justify-between text-sm font-extrabold text-text">
                     <span>Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>KD {subtotal.toFixed(3)}</span>
                   </div>
                   {appliedCoupon && (
                     <div className="flex justify-between items-center text-xs font-semibold">
@@ -286,12 +286,12 @@ export default function CartDrawer() {
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Coupon {appliedCoupon.code} applied
                       </span>
-                      <span className="text-success">-${appliedCoupon.discountAmount.toFixed(2)}</span>
+                      <span className="text-success">-KD {appliedCoupon.discountAmount.toFixed(3)}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center text-sm font-extrabold text-text">
                     <span>Total</span>
-                    <span className="text-primary">${displaySubtotal.toFixed(2)}</span>
+                    <span className="text-primary">KD {displaySubtotal.toFixed(3)}</span>
                   </div>
                 </div>
 
@@ -383,7 +383,7 @@ export default function CartDrawer() {
                     <textarea
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Street, Building, Apartment, Cairo"
+                      placeholder="Street, Building, Area, Kuwait City"
                       rows={2}
                       className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       required
@@ -401,7 +401,7 @@ export default function CartDrawer() {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+20 100 123 4567"
+                      placeholder="+965 5512 3456"
                       className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       required
                     />
@@ -443,7 +443,7 @@ export default function CartDrawer() {
                         Placing Order...
                       </>
                     ) : (
-                      `Confirm Order ($${displaySubtotal.toFixed(2)})`
+                      `Confirm Order (KD ${displaySubtotal.toFixed(3)})`
                     )}
                   </button>
                 </div>
@@ -483,7 +483,7 @@ export default function CartDrawer() {
             <div className="p-5 border-t border-border bg-surface space-y-3">
               <div className="flex justify-between items-center text-sm font-extrabold text-text">
                 <span>Subtotal</span>
-                <span className="text-primary text-base">${subtotal.toFixed(2)}</span>
+                <span className="text-primary text-base">KD {subtotal.toFixed(3)}</span>
               </div>
               <p className="text-[10px] text-text-secondary">Taxes and delivery calculated at checkout.</p>
               <button

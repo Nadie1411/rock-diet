@@ -276,7 +276,7 @@ export default function Orders() {
                           {order.items?.map((item, i) => (
                             <div key={i} className="flex justify-between">
                               <span>{item.quantity}x {item.name}</span>
-                              <span className="font-semibold text-text">${(item.price * item.quantity).toFixed(2)}</span>
+                              <span className="font-semibold text-text">KD {(item.price * item.quantity).toFixed(3)}</span>
                             </div>
                           ))}
                         </div>
@@ -301,14 +301,15 @@ export default function Orders() {
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             {order.couponCode}
                             {order.discountAmount > 0 && (
-                              <span>-${order.discountAmount.toFixed(2)}</span>
+                              <span>-KD {order.discountAmount.toFixed(3)}</span>
                             )}
                           </span>
                         </div>
                       )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-text-secondary">Total Amount</span>
-                        <span className="text-xl font-extrabold text-text">${order.totalPrice?.toFixed(2)}</span>
+
+                        <div className="flex items-center justify-between text-sm font-extrabold text-text">
+                          <span>Total</span>
+                          <span className="text-xl font-extrabold text-text">KD {order.totalPrice?.toFixed(3)}</span>
                       </div>
                     </div>
                   </div>
@@ -353,11 +354,11 @@ export default function Orders() {
                           <CheckCircle2 className="w-3 h-3" />
                           {order.couponCode}
                           {order.discountAmount > 0 && (
-                            <span>-${order.discountAmount.toFixed(2)}</span>
+                            <span>-KD {order.discountAmount.toFixed(3)}</span>
                           )}
                         </p>
                       )}
-                      <span className="text-lg font-extrabold text-text">${order.totalPrice?.toFixed(2)}</span>
+                      <span className="text-lg font-extrabold text-text">KD {order.totalPrice?.toFixed(3)}</span>
                     </div>
                     <button
                       onClick={() => handleReorder(order._id)}

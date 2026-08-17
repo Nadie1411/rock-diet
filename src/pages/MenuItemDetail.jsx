@@ -150,7 +150,7 @@ export default function MenuItemDetail() {
             {/* Price */}
             <div className="pt-4 border-t border-border">
               <span className="text-3xl font-extrabold text-text">
-                ${item.price.toFixed(2)}
+                KD {item.price.toFixed(3)}
               </span>
             </div>
 
@@ -200,7 +200,7 @@ export default function MenuItemDetail() {
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
-                  Add to Cart — ${(item.price * quantity).toFixed(2)}
+                  Add to Cart — KD {(item.price * quantity).toFixed(3)}
                 </>
               )}
             </button>
