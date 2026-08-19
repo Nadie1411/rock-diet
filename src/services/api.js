@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/';
+const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '') + '/';
 
 class ApiError extends Error {
   constructor(message, status, data) {
@@ -31,7 +31,7 @@ const refreshAccessToken = async () => {
 };
 
 const request = async (path, { method = 'GET', body, headers = {}, auth = false } = {}) => {
-  const url = `${BASE_URL}${path.replace(/^\//, '')}`;
+  const url = `${BASE_URL}${path.replace(/^\/+/, '')}`;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
   const optionsHeaders = isFormData

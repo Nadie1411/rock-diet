@@ -111,7 +111,7 @@ export default function MenuItemDetail() {
               <span className="bg-primary text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider capitalize">
                 {catName}
               </span>
-              {item.stock <= 5 && (
+              {item.stock > 0 && item.stock <= 5 && (
                 <span className="bg-warning text-white text-[10px] font-bold px-2.5 py-1 rounded-md">
                   Only {item.stock} left
                 </span>
@@ -167,7 +167,7 @@ export default function MenuItemDetail() {
                 </button>
                 <span className="text-lg font-bold text-text w-8 text-center">{quantity}</span>
                 <button
-                  onClick={() => setQuantity(Math.min(item.stock, quantity + 1))}
+                  onClick={() => setQuantity(Math.max(1, Math.min(item.stock, quantity + 1)))}
                   className="w-8 h-8 rounded-lg bg-bg hover:bg-border flex items-center justify-center text-text transition-colors"
                   aria-label="Increase quantity"
                 >

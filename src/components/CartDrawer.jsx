@@ -24,6 +24,23 @@ export default function CartDrawer() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [availableOffers, setAvailableOffers] = useState([]);
 
+  // Reset drawer state when closed
+  useEffect(() => {
+    if (!isOpen) {
+      setStep('cart');
+      setAddress('');
+      setPhone('');
+      setNote('');
+      setLoading(false);
+      setError('');
+      setPlacedOrder(null);
+      setCouponCode('');
+      setAppliedCoupon(null);
+      setCouponError('');
+      setCouponLoading(false);
+    }
+  }, [isOpen]);
+
   // Load active offers for promo-code discovery
   useEffect(() => {
     let mounted = true;

@@ -166,6 +166,9 @@ export default function Admin() {
   }
 
   const closeModal = () => {
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
     setModalType(null);
     setSelectedItem(null);
     setFormData({});

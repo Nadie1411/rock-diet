@@ -764,7 +764,7 @@ export default function Home() {
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm flex flex-col justify-center gap-5">
               <div>
                 <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center mb-4">
-                  <MapPin className="w-6 h-6 text-accent text-white"/>
+                  <MapPin className="w-6 h-6 text-white"/>
                 </div>
                 <h3 className="font-bold text-white text-lg mb-2">
                   Find Us
@@ -777,7 +777,7 @@ export default function Home() {
 
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <MapPin className="w-4 h-4 text-accent mt-0.5 shrink-0 text-white" />
+                   <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-white" />
                   <div>
                     <p className="text-white text-xs font-semibold">Address</p>
                     <p className="text-white text-[11px] mt-0.5">
@@ -786,7 +786,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Clock className="w-4 h-4 text-accent mt-0.5 shrink-0 text-white" />
+                   <Clock className="w-4 h-4 mt-0.5 shrink-0 text-white" />
                   <div>
                     <p className="text-white text-xs font-semibold">
                       Opening Hours
@@ -797,7 +797,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Truck className="w-4 h-4 text-accent mt-0.5 shrink-0 text-white" />
+                   <Truck className="w-4 h-4 mt-0.5 shrink-0 text-white" />
                   <div>
                     <p className="text-white text-xs font-semibold">
                       Delivery Radius
@@ -830,7 +830,7 @@ export default function Home() {
             <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-accent/20 rounded-full blur-2xl" />
 
             <div className="relative z-10 max-w-xl mx-auto">
-              <div className="inline-flex items-center gap-2 text-accent text-xs font-bold uppercase tracking-widest mb-4 text-white">
+              <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-4 text-white">
                 <TrendingUp className="w-4 h-4 text-white" />
                 <span>Repeat Last Week's Menu</span>
               </div>

@@ -3,7 +3,7 @@ import { ArrowLeft, Home, SearchX } from "lucide-react";
 
 const NotFound = () => {
   return (
-    <div className="min-h-screen bg-bg text-text-primary flex items-center justify-center px-6">
+    <div className="min-h-screen bg-bg text-text flex items-center justify-center px-6">
       <div className="text-center max-w-lg">
         <div className="flex justify-center mb-6">
           <div className="w-20 h-20 rounded-2xl bg-surface flex items-center justify-center">
@@ -15,7 +15,7 @@ const NotFound = () => {
           Error 404
         </p>
 
-        <h1 className="text-5xl md:text-6xl font-extrabold text-text-primary mb-4">
+        <h1 className="text-5xl md:text-6xl font-extrabold text-text mb-4">
           Page Not Found
         </h1>
 
@@ -35,7 +35,7 @@ const NotFound = () => {
 
           <button
             onClick={() => window.history.back()}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-surface text-text-primary font-semibold hover:bg-surface-hover transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-surface text-text font-semibold hover:bg-bg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
             Go Back

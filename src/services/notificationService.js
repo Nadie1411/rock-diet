@@ -13,11 +13,19 @@ export const notificationService = {
 
   getUnreadCount: () => api.get('notification/unread-count', { auth: true }),
 
+  getUnhandledCount: () => api.get('notification/unhandled-count', { auth: true }),
+
   markAsRead: (notificationId) =>
     api.patch(`notification/${notificationId}/read`, {}, { auth: true }),
 
   markAllAsRead: () =>
     api.patch('notification/read-all', {}, { auth: true }),
+
+  markAsHandled: (notificationId) =>
+    api.patch(`notification/${notificationId}/handle`, {}, { auth: true }),
+
+  markAllAsHandled: () =>
+    api.patch('notification/handle-all', {}, { auth: true }),
 
   saveFcmToken: (token) =>
     api.post('notification/fcm-token', { token }, { auth: true }),

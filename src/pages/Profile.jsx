@@ -1,11 +1,20 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Mail, Calendar, ShieldCheck, LogOut, ArrowLeft, Package, BookOpen } from 'lucide-react';
+import { User, Mail, Calendar, ShieldCheck, LogOut, ArrowLeft, Package, BookOpen, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-bg text-text py-24 text-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-3" />
+        <p className="text-xs font-semibold text-text-secondary">Loading profile...</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

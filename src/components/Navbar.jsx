@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Bell,
   CheckCheck,
+  CheckCircle,
   Package,
 } from "lucide-react";
 import rockDietLogo from "../assets/rock-diet-logo.png";
@@ -24,14 +25,15 @@ export default function Navbar() {
   const { isAuthenticated, user, isAdmin, logout } = useAuth();
   const { cartItemCount, openCart } = useCart();
   const {
-    unreadCount,
+    unhandledCount,
     notifications,
     dropdownOpen,
     toast,
     toggleDropdown,
     closeDropdown,
     markAsRead,
-    markAllAsRead,
+    markAsHandled,
+    markAllAsHandled,
     dismissToast,
   } = useNotification();
   const navigate = useNavigate();
@@ -90,7 +92,7 @@ export default function Navbar() {
             <img
               src={rockDietLogo}
               alt="Rock Diet"
-              className="h-13 sm:h-14 w-auto object-contain group-hover:scale-105 transition-transform duration-200"
+              className="h-[52px] sm:h-14 w-auto object-contain group-hover:scale-105 transition-transform duration-200"
             />
           </Link>
 
@@ -148,9 +150,9 @@ export default function Navbar() {
                 >
                   <Bell className="w-5 h-5 hidden md:block" />
                   <Bell className="w-6 h-6 md:hidden" />
-                  {unreadCount > 0 && (
+                  {unhandledCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-error text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-bg shadow-sm animate-pulse">
-                      {unreadCount > 99 ? "99+" : unreadCount}
+                      {unhandledCount > 99 ? "99+" : unhandledCount}
                     </span>
                   )}
                 </button>
@@ -166,13 +168,13 @@ export default function Navbar() {
                     <h3 className="text-sm font-bold text-text">
                       Notifications
                     </h3>
-                    {unreadCount > 0 && (
+                    {unhandledCount > 0 && (
                       <button
-                        onClick={markAllAsRead}
+                        onClick={markAllAsHandled}
                         className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary-light transition-colors"
                       >
                         <CheckCheck className="w-3.5 h-3.5" />
-                        Mark all read
+                        Handle all
                       </button>
                     )}
                   </div>
@@ -188,45 +190,76 @@ export default function Navbar() {
                       </div>
                     ) : (
                       notifications.slice(0, 10).map((notif) => (
-                        <button
+                        <div
                           key={notif._id}
-                          onClick={() => {
-                            markAsRead(notif._id);
-                            closeDropdown();
-                            navigate("/admin?tab=orders");
-                          }}
-                          className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-bg/50 transition-colors ${
-                            !notif.read ? "bg-primary/5" : ""
+                          className={`w-full text-left px-4 py-3 border-b border-border/50 transition-colors ${
+                            !notif.handled
+                              ? "bg-primary/5 hover:bg-primary/10"
+                              : "bg-bg/30 opacity-60"
                           }`}
                         >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className={`mt-0.5 p-1.5 rounded-lg ${
-                                notif.type === "order"
-                                  ? "bg-primary/10 text-primary"
-                                  : "bg-accent/10 text-accent"
-                              }`}
-                            >
-                              <Package className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-xs font-bold text-text truncate">
-                                  {notif.title}
-                                </p>
-                                {!notif.read && (
-                                  <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                          <button
+                            onClick={() => {
+                              markAsRead(notif._id);
+                              closeDropdown();
+                              navigate("/admin?tab=orders");
+                            }}
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`mt-0.5 p-1.5 rounded-lg ${
+                                  notif.handled
+                                    ? "bg-success/10 text-success"
+                                    : notif.type === "order"
+                                      ? "bg-primary/10 text-primary"
+                                      : "bg-accent/10 text-accent"
+                                }`}
+                              >
+                                {notif.handled ? (
+                                  <CheckCircle className="w-4 h-4" />
+                                ) : (
+                                  <Package className="w-4 h-4" />
                                 )}
                               </div>
-                              <p className="text-[11px] text-text-secondary line-clamp-2 mt-0.5">
-                                {notif.body}
-                              </p>
-                              <p className="text-[10px] text-text-secondary/70 mt-1">
-                                {new Date(notif.createdAt).toLocaleString()}
-                              </p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className={`text-xs font-bold text-text truncate ${notif.handled ? "line-through decoration-success/50" : ""}`}>
+                                    {notif.title}
+                                  </p>
+                                  {!notif.handled && !notif.read && (
+                                    <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                                  )}
+                                  {notif.handled && (
+                                    <span className="text-[9px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded-full shrink-0">
+                                      Handled
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-text-secondary line-clamp-2 mt-0.5">
+                                  {notif.body}
+                                </p>
+                                <p className="text-[10px] text-text-secondary/70 mt-1">
+                                  {new Date(notif.createdAt).toLocaleString()}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        </button>
+                          </button>
+                          {!notif.handled && (
+                            <div className="mt-2 ml-7">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markAsHandled(notif._id);
+                                }}
+                                className="flex items-center gap-1 text-[10px] font-semibold text-success hover:text-success/80 bg-success/10 hover:bg-success/20 px-2 py-1 rounded-md transition-colors"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                Mark as handled
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       ))
                     )}
                   </div>

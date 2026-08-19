@@ -19,6 +19,7 @@ export function NotificationProvider({ children }) {
   const { isAdmin, isAuthenticated } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unhandledCount, setUnhandledCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [toast, setToast] = useState(null);
@@ -31,6 +32,17 @@ export function NotificationProvider({ children }) {
     try {
       const res = await notificationService.getUnreadCount();
       setUnreadCount(res.data?.count || 0);
+    } catch {
+      // silent
+    }
+  }, [isAuthenticated]);
+
+  // Fetch unhandled count
+  const fetchUnhandledCount = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await notificationService.getUnhandledCount();
+      setUnhandledCount(res.data?.count || 0);
     } catch {
       // silent
     }
@@ -70,6 +82,36 @@ export function NotificationProvider({ children }) {
     try {
       await notificationService.markAllAsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  // Mark single notification as handled
+  const markAsHandled = useCallback(async (notificationId) => {
+    try {
+      await notificationService.markAsHandled(notificationId);
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n._id === notificationId ? { ...n, handled: true, handledAt: new Date().toISOString(), read: true } : n
+        )
+      );
+      setUnhandledCount((prev) => Math.max(0, prev - 1));
+      fetchUnreadCount();
+    } catch (err) {
+      console.error("markAsHandled failed:", err);
+    }
+  }, [fetchUnreadCount]);
+
+  // Mark all as handled
+  const markAllAsHandled = useCallback(async () => {
+    try {
+      await notificationService.markAllAsHandled();
+      setNotifications((prev) =>
+        prev.map((n) => ({ ...n, handled: true, handledAt: new Date().toISOString(), read: true }))
+      );
+      setUnhandledCount(0);
       setUnreadCount(0);
     } catch {
       // silent
@@ -119,6 +161,7 @@ export function NotificationProvider({ children }) {
     const unsubscribe = onMessageListener((payload) => {
       showToast(payload);
       fetchUnreadCount();
+      fetchUnhandledCount();
     });
 
     return () => {
@@ -126,20 +169,22 @@ export function NotificationProvider({ children }) {
         unsubscribe();
       }
     };
-  }, [isAuthenticated, isAdmin, showToast, fetchUnreadCount]);
+  }, [isAuthenticated, isAdmin, showToast, fetchUnreadCount, fetchUnhandledCount]);
 
   // Fetch initial data when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchUnreadCount();
+      fetchUnhandledCount();
       fetchNotifications();
     } else {
       setNotifications([]);
       setUnreadCount(0);
+      setUnhandledCount(0);
     }
-  }, [isAuthenticated, fetchUnreadCount, fetchNotifications]);
+  }, [isAuthenticated, fetchUnreadCount, fetchUnhandledCount, fetchNotifications]);
 
-  // Poll unread count every 30 seconds for admins
+  // Poll unread + unhandled count every 30 seconds for admins
   useEffect(() => {
     if (!isAuthenticated || !isAdmin) {
       if (pollingRef.current) {
@@ -151,6 +196,7 @@ export function NotificationProvider({ children }) {
 
     pollingRef.current = setInterval(() => {
       fetchUnreadCount();
+      fetchUnhandledCount();
     }, 30000);
 
     return () => {
@@ -158,7 +204,7 @@ export function NotificationProvider({ children }) {
         clearInterval(pollingRef.current);
       }
     };
-  }, [isAuthenticated, isAdmin, fetchUnreadCount]);
+  }, [isAuthenticated, isAdmin, fetchUnreadCount, fetchUnhandledCount]);
 
   // Clean up FCM token on logout
   useEffect(() => {
@@ -173,13 +219,17 @@ export function NotificationProvider({ children }) {
   const value = {
     notifications,
     unreadCount,
+    unhandledCount,
     loading,
     dropdownOpen,
     toast,
     fetchNotifications,
     fetchUnreadCount,
+    fetchUnhandledCount,
     markAsRead,
     markAllAsRead,
+    markAsHandled,
+    markAllAsHandled,
     toggleDropdown,
     closeDropdown,
     dismissToast,
