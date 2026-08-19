@@ -8,9 +8,14 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Try to load profile on mount — if httpOnly cookie exists, this succeeds
+  // Try to load profile on mount — if access token exists in localStorage, this succeeds
   useEffect(() => {
     const loadProfile = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
       try {
         const res = await authService.getProfile();
         setUser(res.data);
@@ -18,6 +23,8 @@ export function AuthProvider({ children }) {
       } catch {
         setUser(null);
         setIsAuthenticated(false);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
       } finally {
         setLoading(false);
       }
@@ -29,6 +36,8 @@ export function AuthProvider({ children }) {
   // Listen for forced logout (expired refresh token)
   useEffect(() => {
     const handleLogout = () => {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       setUser(null);
       setIsAuthenticated(false);
     };
@@ -37,8 +46,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (email, password) => {
-    // Backend sets httpOnly cookies in the response
     const res = await authService.login({ email, password });
+    if (res.data?.access_token) {
+      localStorage.setItem('access_token', res.data.access_token);
+    }
+    if (res.data?.refresh_token) {
+      localStorage.setItem('refresh_token', res.data.refresh_token);
+    }
     setIsAuthenticated(true);
     try {
       const profile = await authService.getProfile();
@@ -70,6 +84,8 @@ export function AuthProvider({ children }) {
     } catch {
       // Even if backend revoke fails, clear local state
     }
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     setUser(null);
     setIsAuthenticated(false);
   }, []);

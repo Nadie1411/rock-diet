@@ -12,16 +12,27 @@ let refreshPromise = null;
 
 const refreshAccessToken = async () => {
   if (!refreshPromise) {
+    const refreshTokenVal = localStorage.getItem('refresh_token');
+    if (!refreshTokenVal) {
+      throw new ApiError('No refresh token available', 401);
+    }
     refreshPromise = fetch(`${BASE_URL}auth/refresh-token`, {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshTokenVal }),
     })
       .then(async (res) => {
         if (!res.ok) {
           throw new ApiError('Refresh failed', res.status);
         }
-        return await res.json();
+        const data = await res.json();
+        if (data.data?.access_token) {
+          localStorage.setItem('access_token', data.data.access_token);
+        }
+        if (data.data?.refresh_token) {
+          localStorage.setItem('refresh_token', data.data.refresh_token);
+        }
+        return data;
       })
       .finally(() => {
         refreshPromise = null;
@@ -34,14 +45,16 @@ const request = async (path, { method = 'GET', body, headers = {}, auth = false 
   const url = `${BASE_URL}${path.replace(/^\/+/, '')}`;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
+  const accessToken = localStorage.getItem('access_token');
+  const authHeaders = accessToken ? { 'Authorization': `Bearer ${accessToken}`, ...headers } : { ...headers };
+
   const optionsHeaders = isFormData
-    ? { ...headers }
-    : { 'Content-Type': 'application/json', ...headers };
+    ? authHeaders
+    : { 'Content-Type': 'application/json', ...authHeaders };
 
   const options = {
     method,
     headers: optionsHeaders,
-    credentials: 'include',
   };
 
   if (body !== undefined) {
@@ -53,6 +66,10 @@ const request = async (path, { method = 'GET', body, headers = {}, auth = false 
   if (res.status === 401 && auth) {
     try {
       await refreshAccessToken();
+      const newAccessToken = localStorage.getItem('access_token');
+      if (newAccessToken) {
+        options.headers['Authorization'] = `Bearer ${newAccessToken}`;
+      }
       res = await fetch(url, options);
     } catch {
       window.dispatchEvent(new Event('auth:logout'));
