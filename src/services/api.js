@@ -1,4 +1,4 @@
-const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '') + '/';
+const BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '') + '/';
 
 class ApiError extends Error {
   constructor(message, status, data) {
