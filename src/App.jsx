@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
@@ -19,6 +20,13 @@ import { NotificationProvider } from './context/NotificationContext';
 import NotFound from './pages/NotFound';
 import AppDownloadBanner from './components/AppDownloadBanner';
 
+function GuestRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return null;
+  if (isAuthenticated) return <Navigate to="/" replace />;
+  return children;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -35,8 +43,8 @@ function App() {
                   <Route path="/menu" element={<Menu />} />
                   <Route path="/menu/:id" element={<MenuItemDetail />} />
                   <Route path="/orders" element={<Orders />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+                  <Route path="/signup" element={<GuestRoute><Signup /></GuestRoute>} />
                   <Route path="/confirm-email" element={<ConfirmEmail />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/admin" element={<Admin />} />

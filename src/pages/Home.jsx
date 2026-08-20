@@ -11,6 +11,8 @@ import {
   Flame,
   CheckCircle2,
   MapPin,
+  Copy,
+  Check,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -56,6 +58,7 @@ export default function Home() {
   const [liveOffers, setLiveOffers] = useState([]);
   const [addingOfferId, setAddingOfferId] = useState(null);
   const [offerError, setOfferError] = useState("");
+  const [copiedCode, setCopiedCode] = useState(null);
   const { addOfferToCart } = useCart();
   const { isAuthenticated } = useAuth();
 
@@ -254,6 +257,13 @@ export default function Home() {
     } finally {
       setAddingOfferId(null);
     }
+  };
+
+  const handleCopyCode = (code) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    });
   };
 
   return (
@@ -629,10 +639,19 @@ export default function Home() {
                     </p>
 
                     {offer.code && (
-                      <div className="inline-flex items-center gap-2 self-start bg-primary/10 border border-primary/20 rounded-lg px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyCode(offer.code)}
+                        className="inline-flex items-center gap-2 self-start bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 hover:bg-primary/20 transition-colors cursor-pointer"
+                      >
                         <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Promo Code:</span>
                         <span className="text-sm font-extrabold text-primary tracking-widest">{offer.code}</span>
-                      </div>
+                        {copiedCode === offer.code ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-primary/60" />
+                        )}
+                      </button>
                     )}
 
                     <div className="flex flex-wrap items-center gap-3">

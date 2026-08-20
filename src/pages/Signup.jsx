@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2, Calendar, Scale, Ruler, Activity, Target } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2, Calendar, Scale, Ruler, Activity, Target, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../services/api';
 import rockDietLogo from '../assets/rock-diet-logo.png';
@@ -27,6 +27,54 @@ export default function Signup() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [phoneCountry, setPhoneCountry] = useState('kw');
+  const countryRef = useRef(null);
+
+  const COUNTRIES = [
+    { code: 'kw', flag: '🇰🇼', dial: '+965', name: 'Kuwait' },
+    { code: 'sa', flag: '🇸🇦', dial: '+966', name: 'Saudi Arabia' },
+    { code: 'ae', flag: '🇦🇪', dial: '+971', name: 'UAE' },
+    { code: 'qa', flag: '🇶🇦', dial: '+974', name: 'Qatar' },
+    { code: 'bh', flag: '🇧🇭', dial: '+973', name: 'Bahrain' },
+    { code: 'om', flag: '🇴🇲', dial: '+968', name: 'Oman' },
+    { code: 'eg', flag: '🇪🇬', dial: '+20', name: 'Egypt' },
+    { code: 'jo', flag: '🇯🇴', dial: '+962', name: 'Jordan' },
+    { code: 'lb', flag: '🇱🇧', dial: '+961', name: 'Lebanon' },
+    { code: 'iq', flag: '🇮🇶', dial: '+964', name: 'Iraq' },
+    { code: 'sy', flag: '🇸🇾', dial: '+963', name: 'Syria' },
+    { code: 'ps', flag: '🇵🇸', dial: '+970', name: 'Palestine' },
+    { code: 'ye', flag: '🇾🇪', dial: '+967', name: 'Yemen' },
+    { code: 'ly', flag: '🇱🇾', dial: '+218', name: 'Libya' },
+    { code: 'tn', flag: '🇹🇳', dial: '+216', name: 'Tunisia' },
+    { code: 'dz', flag: '🇩🇿', dial: '+213', name: 'Algeria' },
+    { code: 'ma', flag: '🇲🇦', dial: '+212', name: 'Morocco' },
+    { code: 'sd', flag: '🇸🇩', dial: '+249', name: 'Sudan' },
+    { code: 'so', flag: '🇸🇴', dial: '+252', name: 'Somalia' },
+    { code: 'dj', flag: '🇩🇯', dial: '+253', name: 'Djibouti' },
+    { code: 'km', flag: '🇰🇲', dial: '+269', name: 'Comoros' },
+    { code: 'mr', flag: '🇲🇷', dial: '+222', name: 'Mauritania' },
+    { code: 'tr', flag: '🇹🇷', dial: '+90', name: 'Turkey' },
+    { code: 'in', flag: '🇮🇳', dial: '+91', name: 'India' },
+    { code: 'pk', flag: '🇵🇰', dial: '+92', name: 'Pakistan' },
+    { code: 'ph', flag: '🇵🇭', dial: '+63', name: 'Philippines' },
+    { code: 'us', flag: '🇺🇸', dial: '+1', name: 'USA' },
+    { code: 'gb', flag: '🇬🇧', dial: '+44', name: 'UK' },
+  ];
+
+  const selectedCountry = COUNTRIES.find((c) => c.code === phoneCountry) || COUNTRIES[0];
+
+  // Close country dropdown on outside click
+  React.useEffect(() => {
+    if (!countryOpen) return;
+    const handleClick = (e) => {
+      if (countryRef.current && !countryRef.current.contains(e.target)) {
+        setCountryOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [countryOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,7 +121,7 @@ export default function Signup() {
       const data = {
         userName: form.userName.trim(),
         email: form.email.trim(),
-        phoneNumber: form.phoneNumber.trim(),
+        phoneNumber: `${selectedCountry.dial} ${form.phoneNumber.trim()}`,
         password: form.password,
         confirmPassword: form.confirmPassword,
         age: Number(form.age),
@@ -182,18 +230,53 @@ export default function Signup() {
               <label htmlFor="phoneNumber" className="block text-xs font-semibold text-text mb-1.5">
                 Phone Number
               </label>
-              <div className="relative">
-                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-                <input
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  type="tel"
-                  value={form.phoneNumber}
-                  onChange={handleChange}
-                  placeholder="+965 5512 3456"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                  required
-                />
+              <div className="flex gap-2">
+                <div className="relative shrink-0" ref={countryRef}>
+                  <button
+                    type="button"
+                    onClick={() => setCountryOpen((p) => !p)}
+                    className="flex items-center gap-1.5 w-[110px] px-2.5 py-2.5 rounded-lg bg-bg border border-border text-text text-xs font-semibold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    <span className="text-base leading-none">{selectedCountry.flag}</span>
+                    <span className="text-text-secondary text-[11px]">{selectedCountry.dial}</span>
+                    <ChevronDown className="w-3 h-3 text-text-secondary ml-auto" />
+                  </button>
+                  {countryOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-56 max-h-52 overflow-y-auto bg-surface border border-border rounded-xl shadow-xl z-50">
+                      {COUNTRIES.map((c) => (
+                        <button
+                          key={c.code}
+                          type="button"
+                          onClick={() => {
+                            setPhoneCountry(c.code);
+                            setCountryOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
+                            c.code === phoneCountry
+                              ? 'bg-primary/10 text-primary font-bold'
+                              : 'text-text hover:bg-bg'
+                          }`}
+                        >
+                          <span className="text-base leading-none">{c.flag}</span>
+                          <span className="font-semibold">{c.name}</span>
+                          <span className="text-text-secondary ml-auto">{c.dial}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="relative flex-1">
+                  <input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    value={form.phoneNumber}
+                    onChange={handleChange}
+                    placeholder="5512 3456"
+                    className="w-full px-3 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    required
+                  />
+                </div>
               </div>
             </div>
 

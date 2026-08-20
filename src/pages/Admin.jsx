@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Sparkles,
   Ticket,
+  Puzzle,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { categoryService } from "../services/categoryService";
@@ -22,6 +23,7 @@ import { productService } from "../services/productService";
 import { orderService } from "../services/orderService";
 import { offerService } from "../services/offerService";
 import { couponService } from "../services/couponService";
+import { addonService } from "../services/addonService";
 import { ApiError } from "../services/api";
 
 const ORDER_STATUSES = [
@@ -52,6 +54,10 @@ export default function Admin() {
   const [offerLoading, setOfferLoading] = useState(false);
   const [coupons, setCoupons] = useState([]);
   const [couponLoading, setCouponLoading] = useState(false);
+
+  // Addons state
+  const [addons, setAddons] = useState([]);
+  const [addonLoading, setAddonLoading] = useState(false);
 
   // Orders state
   const [orders, setOrders] = useState([]);
@@ -136,6 +142,19 @@ export default function Admin() {
     }
   }, []);
 
+  // Fetch Addons
+  const fetchAddons = useCallback(async () => {
+    setAddonLoading(true);
+    try {
+      const res = await addonService.getAddons();
+      setAddons(res.data || []);
+    } catch {
+      setError("Failed to fetch addons.");
+    } finally {
+      setAddonLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isAdmin) {
       fetchCategories();
@@ -143,6 +162,7 @@ export default function Admin() {
       fetchOrders();
       fetchOffers();
       fetchCoupons();
+      fetchAddons();
     }
   }, [
     isAdmin,
@@ -151,6 +171,7 @@ export default function Admin() {
     fetchOrders,
     fetchOffers,
     fetchCoupons,
+    fetchAddons,
   ]);
 
   if (authLoading) {
@@ -572,6 +593,84 @@ export default function Admin() {
     }
   };
 
+  // ADDON ACTIONS
+  const handleOpenCreateAddon = () => {
+    setFormData({ name: "", description: "", price: "", isActive: true });
+    setImageFile(null);
+    setImagePreview(null);
+    setError("");
+    setModalType("createAddon");
+  };
+
+  const handleOpenEditAddon = (addon) => {
+    setSelectedItem(addon);
+    setFormData({
+      name: addon.name,
+      description: addon.description || "",
+      price: addon.price,
+      isActive: addon.isActive ?? true,
+    });
+    setImageFile(null);
+    setImagePreview(addon.image?.secure_url || null);
+    setError("");
+    setModalType("editAddon");
+  };
+
+  const handleSubmitAddon = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+
+    try {
+      const data = new FormData();
+      if (formData.name) data.append("name", formData.name.trim());
+      if (formData.description !== undefined)
+        data.append("description", formData.description.trim());
+      if (formData.price !== undefined && formData.price !== "")
+        data.append("price", Number(formData.price));
+      data.append("isActive", formData.isActive ? "true" : "false");
+      if (imageFile) data.append("image", imageFile);
+
+      if (modalType === "createAddon") {
+        await addonService.createAddon(data);
+        setSuccess("Addon created successfully!");
+      } else {
+        await addonService.updateAddon(selectedItem._id, data);
+        setSuccess("Addon updated successfully!");
+      }
+
+      closeModal();
+      fetchAddons();
+      fetchProducts();
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.data?.error?.length) {
+          setError(err.data.error[0].message);
+        } else {
+          setError(err.message || "Action failed.");
+        }
+      } else {
+        setError("Network error.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteAddon = async (addonId) => {
+    if (!window.confirm("Are you sure you want to delete this addon?")) return;
+    try {
+      await addonService.deleteAddon(addonId);
+      setSuccess("Addon deleted successfully!");
+      fetchAddons();
+      fetchProducts();
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to delete addon.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-bg text-text py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -647,6 +746,17 @@ export default function Admin() {
             >
               <Ticket className="w-4 h-4" />
               Coupons ({coupons.length})
+            </button>
+            <button
+              onClick={() => { setActiveTab("addons"); setSearchParams({ tab: "addons" }); }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+                activeTab === "addons"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-text-secondary hover:text-text"
+              }`}
+            >
+              <Puzzle className="w-4 h-4" />
+              Addons ({addons.length})
             </button>
           </div>
         </div>
@@ -1242,7 +1352,95 @@ export default function Admin() {
           </div>
         )}
 
-        {/* MODAL (CATEGORY / PRODUCT / OFFER / COUPON CREATE & EDIT) */}
+        {/* TAB 6: ADDONS MANAGEMENT */}
+        {activeTab === "addons" && (
+          <div className="space-y-5">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold text-text">Add-ons</h2>
+              <button
+                onClick={handleOpenCreateAddon}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Add New Addon
+              </button>
+            </div>
+
+            {addonLoading ? (
+              <div className="py-16 text-center">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
+              </div>
+            ) : addons.length === 0 ? (
+              <div className="bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
+                <Puzzle className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-semibold">No addons found</p>
+                <button
+                  onClick={handleOpenCreateAddon}
+                  className="mt-3 text-xs font-semibold text-primary hover:underline"
+                >
+                  Create your first addon
+                </button>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {addons.map((addon) => (
+                  <div
+                    key={addon._id}
+                    className="bg-surface border border-border rounded-xl p-4 flex flex-col justify-between space-y-3"
+                  >
+                    <div className="space-y-2">
+                      <img
+                        src={
+                          addon.image?.secure_url ||
+                          "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80"
+                        }
+                        alt={addon.name}
+                        className="w-full h-32 rounded-lg object-cover bg-bg border border-border"
+                      />
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-extrabold text-text">
+                          {addon.name}
+                        </h3>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            addon.isActive
+                              ? "bg-success/10 text-success"
+                              : "bg-error/10 text-error"
+                          }`}
+                        >
+                          {addon.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-text-secondary line-clamp-2">
+                        {addon.description || "No description provided."}
+                      </p>
+                      <p className="text-sm font-extrabold text-primary">
+                        KD {(addon.price || 0).toFixed(3)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-border">
+                      <button
+                        onClick={() => handleOpenEditAddon(addon)}
+                        className="flex-1 py-1.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" /> Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAddon(addon._id)}
+                        className="py-1.5 px-3 rounded bg-error/10 text-error hover:bg-error hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MODAL (CATEGORY / PRODUCT / OFFER / COUPON / ADDON CREATE & EDIT) */}
         {modalType && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-surface border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -1256,6 +1454,8 @@ export default function Admin() {
                   {modalType === "editOffer" && "Edit Offer"}
                   {modalType === "createCoupon" && "Create Coupon"}
                   {modalType === "editCoupon" && "Edit Coupon"}
+                  {modalType === "createAddon" && "Create Add-on"}
+                  {modalType === "editAddon" && "Edit Add-on"}
                 </h3>
                 <button
                   onClick={closeModal}
@@ -1280,12 +1480,14 @@ export default function Admin() {
                       ? handleSubmitProduct
                       : modalType.includes("Offer")
                         ? handleSubmitOffer
-                        : handleSubmitCoupon
+                        : modalType.includes("Addon")
+                          ? handleSubmitAddon
+                          : handleSubmitCoupon
                 }
                 className="space-y-4 text-xs"
               >
-                {/* CATEGORY / PRODUCT FIELDS */}
-                {(modalType.includes("Category") || modalType.includes("Product")) && (
+                {/* CATEGORY / PRODUCT / ADDON FIELDS */}
+                {(modalType.includes("Category") || modalType.includes("Product") || modalType.includes("Addon")) && (
                   <>
                     {/* Name */}
                     <div>
@@ -1712,6 +1914,52 @@ export default function Admin() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                  </>
+                )}
+
+                {/* ADDON SPECIFIC FIELDS */}
+                {modalType.includes("Addon") && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-semibold text-text mb-1">
+                          Price (KD) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.price ?? ""}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              price: e.target.value,
+                            }))
+                          }
+                          placeholder="1.500"
+                          className="w-full px-3.5 py-2.5 rounded-lg bg-bg border border-border text-text placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-text mb-1">
+                          Status
+                        </label>
+                        <select
+                          value={formData.isActive ? "true" : "false"}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              isActive: e.target.value === "true",
+                            }))
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-lg bg-bg border border-border text-text focus:outline-none focus:border-primary font-semibold"
+                        >
+                          <option value="true">Active</option>
+                          <option value="false">Inactive</option>
+                        </select>
+                      </div>
                     </div>
                   </>
                 )}

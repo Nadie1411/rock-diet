@@ -35,13 +35,13 @@ export function CartProvider({ children }) {
   const closeCart = () => setIsOpen(false);
   const toggleCart = () => setIsOpen((prev) => !prev);
 
-  const addToCart = async (productId, quantity = 1) => {
+  const addToCart = async (productId, quantity = 1, addons = []) => {
     if (!isAuthenticated) {
       throw new Error('Please login to add items to your cart.');
     }
     try {
       setError('');
-      const res = await cartService.addToCart(productId, quantity);
+      const res = await cartService.addToCart(productId, quantity, addons);
       setCart(res.data?.cart ?? res.data);
       openCart();
       return res;
@@ -67,11 +67,11 @@ export function CartProvider({ children }) {
     }
   };
 
-  const updateQuantity = async (productId, quantity) => {
+  const updateQuantity = async (productId, quantity, addons) => {
     if (!isAuthenticated) return;
     try {
       setError('');
-      const res = await cartService.updateCartItem(productId, quantity);
+      const res = await cartService.updateCartItem(productId, quantity, addons);
       setCart(res.data?.cart ?? res.data);
       return res;
     } catch (err) {
@@ -110,7 +110,11 @@ export function CartProvider({ children }) {
   const cartItemCount = items.reduce((acc, item) => acc + (item.quantity || 0), 0);
   const subtotal = items.reduce((acc, item) => {
     const price = item.productId?.price || 0;
-    return acc + price * item.quantity;
+    const addonsTotal = (item.selectedAddons || []).reduce(
+      (sum, addon) => sum + (addon.price || 0),
+      0,
+    );
+    return acc + (price + addonsTotal) * item.quantity;
   }, 0);
 
   const value = {
