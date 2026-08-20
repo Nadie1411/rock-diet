@@ -691,72 +691,78 @@ export default function Admin() {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-1 bg-bg p-1 rounded-lg border border-border shadow-sm">
+          <div className="flex items-center gap-1 bg-bg p-1 rounded-lg border border-border shadow-sm overflow-x-auto flex-nowrap min-w-0 scrollbar-hide">
             <button
               onClick={() => { setActiveTab("products"); setSearchParams({ tab: "products" }); }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                 activeTab === "products"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text"
               }`}
             >
               <Package className="w-4 h-4" />
-              Products ({products.length})
+              <span className="hidden sm:inline">Products</span>
+              <span className="sm:hidden">{products.length}</span>
             </button>
             <button
               onClick={() => { setActiveTab("categories"); setSearchParams({ tab: "categories" }); }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                 activeTab === "categories"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text"
               }`}
             >
               <Layers className="w-4 h-4" />
-              Categories ({categories.length})
+              <span className="hidden sm:inline">Categories</span>
+              <span className="sm:hidden">{categories.length}</span>
             </button>
             <button
               onClick={() => { setActiveTab("orders"); setSearchParams({ tab: "orders" }); }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                 activeTab === "orders"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text"
               }`}
             >
               <ShoppingBag className="w-4 h-4" />
-              Orders ({orders.length})
+              <span className="hidden sm:inline">Orders</span>
+              <span className="sm:hidden">{orders.length}</span>
             </button>
             <button
               onClick={() => { setActiveTab("offers"); setSearchParams({ tab: "offers" }); }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                 activeTab === "offers"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text"
               }`}
             >
               <Sparkles className="w-4 h-4" />
-              Offers ({offers.length})
+              <span className="hidden sm:inline">Offers</span>
+              <span className="sm:hidden">{offers.length}</span>
             </button>
             <button
               onClick={() => { setActiveTab("coupons"); setSearchParams({ tab: "coupons" }); }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                 activeTab === "coupons"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text"
               }`}
             >
               <Ticket className="w-4 h-4" />
-              Coupons ({coupons.length})
+              <span className="hidden sm:inline">Coupons</span>
+              <span className="sm:hidden">{coupons.length}</span>
             </button>
             <button
               onClick={() => { setActiveTab("addons"); setSearchParams({ tab: "addons" }); }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                 activeTab === "addons"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text"
               }`}
             >
               <Puzzle className="w-4 h-4" />
-              Addons ({addons.length})
+              <span className="hidden sm:inline">Addons</span>
+              <span className="sm:hidden">{addons.length}</span>
             </button>
           </div>
         </div>
@@ -768,7 +774,7 @@ export default function Admin() {
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
-            <button onClick={() => setError("")}>
+            <button onClick={() => setError("")} className="p-2 rounded hover:bg-error/10 min-w-[32px] min-h-[32px] flex items-center justify-center shrink-0">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -780,7 +786,7 @@ export default function Admin() {
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{success}</span>
             </div>
-            <button onClick={() => setSuccess("")}>
+            <button onClick={() => setSuccess("")} className="p-2 rounded hover:bg-success/10 min-w-[32px] min-h-[32px] flex items-center justify-center shrink-0">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -789,7 +795,7 @@ export default function Admin() {
         {/* TAB 1: PRODUCTS MANAGEMENT */}
         {activeTab === "products" && (
           <div className="space-y-5">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <h2 className="text-lg font-bold text-text">Meals & Products</h2>
               <button
                 onClick={handleOpenCreateProduct}
@@ -821,12 +827,12 @@ export default function Admin() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-bg border-b border-border text-[11px] font-bold text-text-secondary uppercase tracking-wider">
-                        <th className="py-3 px-4">Image</th>
-                        <th className="py-3 px-4">Name</th>
-                        <th className="py-3 px-4">Category</th>
-                        <th className="py-3 px-4">Price</th>
-                        <th className="py-3 px-4">Stock</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
+                        <th className="py-3 px-2 sm:px-4">Image</th>
+                        <th className="py-3 px-2 sm:px-4">Name</th>
+                        <th className="py-3 px-2 sm:px-4 hidden md:table-cell">Category</th>
+                        <th className="py-3 px-2 sm:px-4">Price</th>
+                        <th className="py-3 px-2 sm:px-4 hidden sm:table-cell">Stock</th>
+                        <th className="py-3 px-2 sm:px-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border text-xs text-text">
@@ -840,7 +846,7 @@ export default function Admin() {
                             key={prod._id}
                             className="hover:bg-bg/50 transition-colors"
                           >
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-2 sm:px-4">
                               <img
                                 src={
                                   prod.image?.secure_url ||
@@ -850,39 +856,39 @@ export default function Admin() {
                                 className="w-10 h-10 rounded-lg object-cover bg-bg border border-border"
                               />
                             </td>
-                            <td className="py-3 px-4 font-bold text-text">
+                            <td className="py-3 px-2 sm:px-4 font-bold text-text">
                               <div>{prod.name}</div>
                               <div className="text-[10px] text-text-secondary line-clamp-1">
                                 {prod.description}
                               </div>
                             </td>
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-2 sm:px-4 hidden md:table-cell">
                               <span className="inline-block px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold uppercase">
                                 {catName}
                               </span>
                             </td>
-                            <td className="py-3 px-4 font-extrabold text-primary">
+                            <td className="py-3 px-2 sm:px-4 font-extrabold text-primary">
                               KD {prod.price.toFixed(3)}
                             </td>
-                            <td className="py-3 px-4 font-semibold">
+                            <td className="py-3 px-2 sm:px-4 font-semibold hidden sm:table-cell">
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] ${prod.stock > 0 ? "bg-success/10 text-success" : "bg-error/10 text-error"}`}
                               >
                                 {prod.stock} left
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-3 px-2 sm:px-4 text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={() => handleOpenEditProduct(prod)}
-                                  className="p-1.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border transition-colors"
+                                  className="p-2 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                                   title="Edit"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteProduct(prod._id)}
-                                  className="p-1.5 rounded bg-error/10 text-error hover:bg-error hover:text-white transition-colors"
+                                  className="p-2 rounded bg-error/10 text-error hover:bg-error hover:text-white transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                                   title="Delete"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -903,7 +909,7 @@ export default function Admin() {
         {/* TAB 2: CATEGORIES MANAGEMENT */}
         {activeTab === "categories" && (
           <div className="space-y-5">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <h2 className="text-lg font-bold text-text">Meal Categories</h2>
               <button
                 onClick={handleOpenCreateCategory}
@@ -956,13 +962,13 @@ export default function Admin() {
                     <div className="flex items-center gap-2 pt-2 border-t border-border">
                       <button
                         onClick={() => handleOpenEditCategory(cat)}
-                        className="flex-1 py-1.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                        className="flex-1 py-2.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border text-xs font-semibold transition-colors flex items-center justify-center gap-1 min-h-[40px]"
                       >
                         <Edit className="w-3.5 h-3.5" /> Edit
                       </button>
                       <button
                         onClick={() => handleDeleteCategory(cat._id)}
-                        className="py-1.5 px-3 rounded bg-error/10 text-error hover:bg-error hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                        className="py-2.5 px-3 rounded bg-error/10 text-error hover:bg-error hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1 min-h-[40px]"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -999,7 +1005,7 @@ export default function Admin() {
                 </select>
                 <button
                   onClick={fetchOrders}
-                  className="p-1.5 rounded-lg bg-bg border border-border text-text-secondary hover:text-primary"
+                   className="p-2 rounded-lg bg-bg border border-border text-text-secondary hover:text-primary min-w-[36px] min-h-[36px] flex items-center justify-center"
                 >
                   <RefreshCw className="w-4 h-4" />
                 </button>
@@ -1151,7 +1157,7 @@ export default function Admin() {
         {/* TAB 4: OFFERS MANAGEMENT */}
         {activeTab === "offers" && (
           <div className="space-y-5">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <h2 className="text-lg font-bold text-text">Promotions & Offers</h2>
               <button
                 onClick={handleOpenCreateOffer}
@@ -1234,13 +1240,13 @@ export default function Admin() {
                       <div className="flex items-center gap-2 pt-2 border-t border-border">
                         <button
                           onClick={() => handleOpenEditOffer(offer)}
-                          className="flex-1 py-1.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                          className="flex-1 py-2.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border text-xs font-semibold transition-colors flex items-center justify-center gap-1 min-h-[40px]"
                         >
                           <Edit className="w-3.5 h-3.5" /> Edit
                         </button>
                         <button
                           onClick={() => handleDeleteOffer(offer._id)}
-                          className="py-1.5 px-3 rounded bg-error/10 text-error hover:bg-error hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                          className="py-2.5 px-3 rounded bg-error/10 text-error hover:bg-error hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1 min-h-[40px]"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1256,7 +1262,7 @@ export default function Admin() {
         {/* TAB 5: COUPONS MANAGEMENT */}
         {activeTab === "coupons" && (
           <div className="space-y-5">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <h2 className="text-lg font-bold text-text">Discount Coupons</h2>
               <button
                 onClick={handleOpenCreateCoupon}
@@ -1288,32 +1294,32 @@ export default function Admin() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-bg border-b border-border text-[11px] font-bold text-text-secondary uppercase tracking-wider">
-                        <th className="py-3 px-4">Code</th>
-                        <th className="py-3 px-4">Discount</th>
-                        <th className="py-3 px-4">Min Order</th>
-                        <th className="py-3 px-4">Expiry</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
+                        <th className="py-3 px-2 sm:px-4">Code</th>
+                        <th className="py-3 px-2 sm:px-4">Discount</th>
+                        <th className="py-3 px-2 sm:px-4 hidden sm:table-cell">Min Order</th>
+                        <th className="py-3 px-2 sm:px-4 hidden sm:table-cell">Expiry</th>
+                        <th className="py-3 px-2 sm:px-4">Status</th>
+                        <th className="py-3 px-2 sm:px-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border text-xs text-text">
                       {coupons.map((coupon) => (
                         <tr key={coupon._id} className="hover:bg-bg/50 transition-colors">
-                          <td className="py-3 px-4 font-extrabold text-primary tracking-widest">
+                          <td className="py-3 px-2 sm:px-4 font-extrabold text-primary tracking-widest">
                             {coupon.code}
                           </td>
-                          <td className="py-3 px-4 font-semibold">
+                          <td className="py-3 px-2 sm:px-4 font-semibold">
                             {coupon.discountType === "percent"
                               ? `${coupon.discountValue}%`
                               : `KD ${coupon.discountValue.toFixed(3)}`}
                           </td>
-                          <td className="py-3 px-4">KD {coupon.minOrder?.toFixed(3)}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-2 sm:px-4 hidden sm:table-cell">KD {coupon.minOrder?.toFixed(3)}</td>
+                          <td className="py-3 px-2 sm:px-4 hidden sm:table-cell">
                             {coupon.expiryDate
                               ? new Date(coupon.expiryDate).toLocaleDateString()
                               : "—"}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-2 sm:px-4">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                                 coupon.active
@@ -1324,18 +1330,18 @@ export default function Admin() {
                               {coupon.active ? "Active" : "Inactive"}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-2 sm:px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => handleOpenEditCoupon(coupon)}
-                                className="p-1.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border transition-colors"
+                                className="p-2 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                                 title="Edit"
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDeleteCoupon(coupon._id)}
-                                className="p-1.5 rounded bg-error/10 text-error hover:bg-error hover:text-white transition-colors"
+                                className="p-2 rounded bg-error/10 text-error hover:bg-error hover:text-white transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                                 title="Delete"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1355,7 +1361,7 @@ export default function Admin() {
         {/* TAB 6: ADDONS MANAGEMENT */}
         {activeTab === "addons" && (
           <div className="space-y-5">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <h2 className="text-lg font-bold text-text">Add-ons</h2>
               <button
                 onClick={handleOpenCreateAddon}
@@ -1422,13 +1428,13 @@ export default function Admin() {
                     <div className="flex items-center gap-2 pt-2 border-t border-border">
                       <button
                         onClick={() => handleOpenEditAddon(addon)}
-                        className="flex-1 py-1.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                        className="flex-1 py-2.5 rounded bg-bg text-text-secondary hover:text-primary hover:bg-surface border border-border text-xs font-semibold transition-colors flex items-center justify-center gap-1 min-h-[40px]"
                       >
                         <Edit className="w-3.5 h-3.5" /> Edit
                       </button>
                       <button
                         onClick={() => handleDeleteAddon(addon._id)}
-                        className="py-1.5 px-3 rounded bg-error/10 text-error hover:bg-error hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                        className="py-2.5 px-3 rounded bg-error/10 text-error hover:bg-error hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1 min-h-[40px]"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1442,8 +1448,8 @@ export default function Admin() {
 
         {/* MODAL (CATEGORY / PRODUCT / OFFER / COUPON / ADDON CREATE & EDIT) */}
         {modalType && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-surface border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
+            <div className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] p-4 sm:p-6 shadow-2xl space-y-4">
               <div className="flex justify-between items-center border-b border-border pb-3">
                 <h3 className="text-lg font-bold text-text">
                   {modalType === "createCategory" && "Create Category"}
@@ -1459,7 +1465,7 @@ export default function Admin() {
                 </h3>
                 <button
                   onClick={closeModal}
-                  className="p-1 rounded-lg text-text-secondary hover:text-text"
+                  className="p-2 rounded-lg text-text-secondary hover:text-text hover:bg-bg min-w-[40px] min-h-[40px] flex items-center justify-center"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1746,7 +1752,7 @@ export default function Admin() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block font-semibold text-text mb-1">Usage Limit</label>
                         <input
@@ -1998,14 +2004,14 @@ export default function Admin() {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="flex-1 py-2.5 rounded-xl border border-border text-text font-semibold hover:bg-bg transition-colors"
+                    className="flex-1 py-3 min-h-[44px] rounded-xl border border-border text-text font-semibold hover:bg-bg transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary-light text-white font-bold transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-60"
+                    className="flex-1 py-3 min-h-[44px] rounded-xl bg-primary hover:bg-primary-light text-white font-bold transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-60"
                   >
                     {submitting ? (
                       <>
