@@ -78,6 +78,14 @@ export function AuthProvider({ children }) {
     return res;
   }, []);
 
+  const updateProfile = useCallback(async (data) => {
+    const res = await authService.updateProfile(data);
+    if (res.data) {
+      setUser(res.data);
+    }
+    return res;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await authService.logout();
@@ -101,6 +109,7 @@ export function AuthProvider({ children }) {
     signup,
     confirmEmail,
     resendOtp,
+    updateProfile,
     logout,
   };
 

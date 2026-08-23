@@ -7,5 +7,6 @@ export const authService = {
   resendOtp: (email) => api.post('auth/resend-otp', { email }),
   confirmEmail: (email, otp) => api.patch('auth/confirm-email', { email, otp }),
   getProfile: () => api.get('user', { auth: true }),
+  updateProfile: (data) => api.patch('user', data, { auth: true }),
   logout: () => api.post('auth/logout', {}, { auth: true }),
 };
