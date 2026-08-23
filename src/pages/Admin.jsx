@@ -1767,8 +1767,11 @@ export default function Admin() {
                             {sub.duration}
                           </span>
                         )}
-                        <span className="text-[10px] text-text-secondary ml-auto">
+                        <span className="text-[10px] text-text-secondary ml-auto text-right">
                           {formatAdminDate(sub.subscriptionStart)} → {formatAdminDate(sub.subscriptionEnd)}
+                          {sub.subscriptionReminderSentAt && (
+                            <span className="block text-warning">renewal reminder sent</span>
+                          )}
                         </span>
                       </div>
 
@@ -1851,6 +1854,20 @@ export default function Admin() {
                             className={`w-4 h-4 text-text-secondary transition-transform ${mealPlannerId === sub._id ? "rotate-180" : ""}`}
                           />
                         </button>
+
+                        {mealPlannerId !== sub._id && sub.weeklyMealsExpiresAt && (
+                          (() => {
+                            const expiresAt = new Date(sub.weeklyMealsExpiresAt);
+                            const hoursLeft = (expiresAt - Date.now()) / 3600000;
+                            return (
+                              <p className={`mt-1 text-[10px] font-semibold ${hoursLeft <= 24 ? "text-warning" : "text-text-secondary"}`}>
+                                {hoursLeft > 0
+                                  ? `Plan active until ${formatAdminDate(sub.weeklyMealsExpiresAt)}${sub.weeklyMealsReminderSentAt ? " · expiry reminder sent" : ""}`
+                                  : "Plan expired — assign a new week"}
+                              </p>
+                            );
+                          })()
+                        )}
 
                         {mealPlannerId === sub._id && (
                           <div className="mt-2 space-y-2">
