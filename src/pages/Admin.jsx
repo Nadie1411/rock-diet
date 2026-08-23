@@ -16,6 +16,13 @@ import {
   Sparkles,
   Ticket,
   Puzzle,
+  Users,
+  Ban,
+  Phone,
+  Save,
+  Flame,
+  UtensilsCrossed,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { categoryService } from "../services/categoryService";
@@ -24,6 +31,8 @@ import { orderService } from "../services/orderService";
 import { offerService } from "../services/offerService";
 import { couponService } from "../services/couponService";
 import { addonService } from "../services/addonService";
+import { userService } from "../services/userService";
+import { forbiddenFoodLabel } from "../data/foodPreferences";
 import { ApiError } from "../services/api";
 
 const ORDER_STATUSES = [
@@ -35,6 +44,46 @@ const ORDER_STATUSES = [
 ];
 
 const COUPON_DISCOUNT_TYPES = ["percent", "fixed"];
+
+const GOAL_LABELS = {
+  weight_loss: "Weight Loss",
+  maintenance: "Maintenance",
+  bulking: "Bulking",
+};
+
+const ACTIVITY_LABELS = {
+  light: "Light",
+  moderate: "Moderate",
+  active: "Active",
+  very_active: "Very Active",
+};
+
+const SUBSCRIPTION_DURATIONS = ["1 month", "3 months", "6 months", "12 months"];
+
+const WEEK_DAYS = [
+  "saturday",
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+];
+
+const makeMealKey = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+const countPlannedMeals = (weeklyMeals = []) =>
+  weeklyMeals.reduce((sum, day) => sum + (day.meals?.length || 0), 0);
+
+const formatAdminDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
 export default function Admin() {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -58,6 +107,19 @@ export default function Admin() {
   // Addons state
   const [addons, setAddons] = useState([]);
   const [addonLoading, setAddonLoading] = useState(false);
+
+  // Subscribers state
+  const [subscribers, setSubscribers] = useState([]);
+  const [subsLoading, setSubsLoading] = useState(false);
+  const [subsSearch, setSubsSearch] = useState("");
+  const [editingSubId, setEditingSubId] = useState(null);
+  const [subForm, setSubForm] = useState({ package: "", goal: "", duration: "" });
+  const [savingSubId, setSavingSubId] = useState(false);
+
+  // Weekly meal planner state
+  const [mealPlannerId, setMealPlannerId] = useState(null);
+  const [mealPlanDraft, setMealPlanDraft] = useState({});
+  const [savingMealsId, setSavingMealsId] = useState(false);
 
   // Orders state
   const [orders, setOrders] = useState([]);
@@ -155,6 +217,19 @@ export default function Admin() {
     }
   }, []);
 
+  // Fetch Subscribers
+  const fetchSubscribers = useCallback(async () => {
+    setSubsLoading(true);
+    try {
+      const res = await userService.getSubscribers();
+      setSubscribers(res.data || []);
+    } catch {
+      setError("Failed to fetch subscribers.");
+    } finally {
+      setSubsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isAdmin) {
       fetchCategories();
@@ -163,6 +238,7 @@ export default function Admin() {
       fetchOffers();
       fetchCoupons();
       fetchAddons();
+      fetchSubscribers();
     }
   }, [
     isAdmin,
@@ -172,6 +248,7 @@ export default function Admin() {
     fetchOffers,
     fetchCoupons,
     fetchAddons,
+    fetchSubscribers,
   ]);
 
   if (authLoading) {
@@ -671,6 +748,139 @@ export default function Admin() {
     }
   };
 
+  // SUBSCRIPTION ACTIONS
+  const handleOpenEditSubscription = (sub) => {
+    setEditingSubId(sub._id);
+    setError("");
+    setSubForm({
+      package: sub.package || "",
+      goal: sub.goal || "",
+      duration: sub.duration || "",
+    });
+  };
+
+  const handleCancelEditSubscription = () => {
+    setEditingSubId(null);
+    setSubForm({ package: "", goal: "", duration: "" });
+  };
+
+  const handleSaveSubscription = async (userId) => {
+    if (!subForm.package.trim() || !subForm.goal || !subForm.duration) {
+      setError("Package, goal, and duration are all required.");
+      return;
+    }
+    setSavingSubId(true);
+    try {
+      await userService.updateSubscription(userId, {
+        package: subForm.package.trim(),
+        goal: subForm.goal,
+        duration: subForm.duration,
+      });
+      setSuccess("Subscription updated successfully!");
+      setTimeout(() => setSuccess(""), 3000);
+      handleCancelEditSubscription();
+      fetchSubscribers();
+    } catch (err) {
+      setError(err.message || "Failed to update subscription.");
+    } finally {
+      setSavingSubId(false);
+    }
+  };
+
+  // WEEKLY MEAL PLANNER ACTIONS
+  const toggleMealPlanner = (sub) => {
+    if (mealPlannerId === sub._id) {
+      setMealPlannerId(null);
+      return;
+    }
+    const existing = sub.weeklyMeals || [];
+    const draft = {};
+    for (const day of WEEK_DAYS) {
+      draft[day] = (
+        existing.find((entry) => entry.day === day)?.meals || []
+      ).map((meal) => ({
+        key: makeMealKey(),
+        productId: typeof meal.productId === "object" ? meal.productId._id : meal.productId,
+        name: typeof meal.productId === "object" ? meal.productId.name : meal.name,
+        notes: meal.notes || "",
+      }));
+    }
+    setMealPlanDraft(draft);
+    setError("");
+    setMealPlannerId(sub._id);
+  };
+
+  const handleAddMealToDay = (day, productId) => {
+    if (!productId) return;
+    setMealPlanDraft((prev) => ({
+      ...prev,
+      [day]: [
+        ...(prev[day] || []),
+        { key: makeMealKey(), productId, notes: "" },
+      ],
+    }));
+  };
+
+  const handleRemoveMealFromDay = (day, key) => {
+    setMealPlanDraft((prev) => ({
+      ...prev,
+      [day]: (prev[day] || []).filter((meal) => meal.key !== key),
+    }));
+  };
+
+  const handleMealNoteChange = (day, key, notes) => {
+    setMealPlanDraft((prev) => ({
+      ...prev,
+      [day]: (prev[day] || []).map((meal) =>
+        meal.key === key ? { ...meal, notes } : meal,
+      ),
+    }));
+  };
+
+  const handleSaveWeeklyMeals = async (userId) => {
+    setSavingMealsId(true);
+    try {
+      const weeklyMeals = WEEK_DAYS.filter(
+        (day) => (mealPlanDraft[day] || []).length > 0,
+      ).map((day) => ({
+        day,
+        meals: mealPlanDraft[day].map(({ productId, notes }) => ({
+          productId,
+          notes,
+        })),
+      }));
+
+      const res = await userService.updateWeeklyMeals(userId, weeklyMeals);
+
+      setSubscribers((prev) =>
+        prev.map((sub) =>
+          sub._id === userId
+            ? { ...sub, weeklyMeals: res.data?.weeklyMeals || [] }
+            : sub,
+        ),
+      );
+      setSuccess("Weekly meals updated successfully!");
+      setTimeout(() => setSuccess(""), 3000);
+      setMealPlannerId(null);
+    } catch (err) {
+      setError(err.message || "Failed to save weekly meals.");
+    } finally {
+      setSavingMealsId(false);
+    }
+  };
+
+  const filteredSubscribers = subscribers.filter((sub) => {
+    const query = subsSearch.trim().toLowerCase();
+    if (!query) return true;
+    const name = `${sub.firstName} ${sub.lastName}`.toLowerCase();
+    return (
+      name.includes(query) ||
+      (sub.email || "").toLowerCase().includes(query) ||
+      (sub.phoneNumber || "").includes(query) ||
+      (sub.package || "").toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-bg text-text py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -763,6 +973,18 @@ export default function Admin() {
               <Puzzle className="w-4 h-4" />
               <span className="hidden sm:inline">Addons</span>
               <span className="sm:hidden">{addons.length}</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab("subscribers"); setSearchParams({ tab: "subscribers" }); }}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === "subscribers"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-text-secondary hover:text-text"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Subscribers</span>
+              <span className="sm:hidden">{subscribers.length}</span>
             </button>
           </div>
         </div>
@@ -1441,6 +1663,354 @@ export default function Admin() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 7: SUBSCRIBERS MANAGEMENT */}
+        {activeTab === "subscribers" && (
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-text">Subscribed Users</h2>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Weekly meal-planning overview: targets, macros &amp; forbidden foods.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input
+                  type="text"
+                  value={subsSearch}
+                  onChange={(e) => setSubsSearch(e.target.value)}
+                  placeholder="Search name, email, phone..."
+                  className="w-full sm:w-64 px-3 py-2 rounded-lg bg-surface border border-border text-xs font-semibold text-text placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                />
+                <button
+                  onClick={fetchSubscribers}
+                  disabled={subsLoading}
+                  className="p-2 rounded-lg bg-surface border border-border text-text-secondary hover:text-primary hover:border-primary transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center shrink-0"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${subsLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+            </div>
+
+            {subsLoading ? (
+              <div className="py-16 text-center">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
+              </div>
+            ) : subscribers.length === 0 ? (
+              <div className="bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
+                <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-semibold">No subscribed users found</p>
+                <p className="text-xs mt-1">Users with an assigned package will appear here.</p>
+              </div>
+            ) : filteredSubscribers.length === 0 ? (
+              <div className="bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
+                <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-semibold">No matches for "{subsSearch}"</p>
+              </div>
+            ) : (
+              <div className="grid lg:grid-cols-2 gap-4">
+                {filteredSubscribers.map((sub) => {
+                  const fullName = sub.userName || `${sub.firstName} ${sub.lastName}`;
+                  const isEditing = editingSubId === sub._id;
+                  return (
+                    <div
+                      key={sub._id}
+                      className="bg-surface border border-border rounded-xl p-4 sm:p-5 space-y-4"
+                    >
+                      {/* Identity */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-full bg-primary flex items-center justify-center text-white font-bold text-base shrink-0">
+                            {(fullName.charAt(0) || "U").toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-extrabold text-text truncate">{fullName}</h3>
+                            <p className="text-xs text-text-secondary truncate">{sub.email}</p>
+                            {sub.phoneNumber && (
+                              <p className="text-[10px] text-text-secondary flex items-center gap-1 mt-0.5">
+                                <Phone className="w-3 h-3 shrink-0" />
+                                {sub.phoneNumber}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap shrink-0 ${
+                            sub.subscriptionActive
+                              ? "bg-success/10 text-success"
+                              : "bg-error/10 text-error"
+                          }`}
+                        >
+                          {sub.subscriptionActive
+                            ? `${sub.daysRemaining !== null && sub.daysRemaining >= 0 ? sub.daysRemaining : 0}d left`
+                            : "Expired"}
+                        </span>
+                      </div>
+
+                      {/* Plan summary */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wide">
+                          {sub.package}
+                        </span>
+                        {sub.goal && (
+                          <span className="px-2 py-0.5 rounded bg-bg border border-border text-text-secondary text-[10px] font-semibold">
+                            {GOAL_LABELS[sub.goal] || sub.goal}
+                          </span>
+                        )}
+                        {sub.duration && (
+                          <span className="px-2 py-0.5 rounded bg-bg border border-border text-text-secondary text-[10px] font-semibold">
+                            {sub.duration}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-text-secondary ml-auto">
+                          {formatAdminDate(sub.subscriptionStart)} → {formatAdminDate(sub.subscriptionEnd)}
+                        </span>
+                      </div>
+
+                      {/* Targets for weekly meals */}
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="bg-bg border border-border rounded-lg p-2 text-center">
+                          <span className="block text-[9px] font-bold text-text-secondary uppercase">Daily kcal</span>
+                          <p className="text-sm font-extrabold text-primary">{sub.calories ?? "—"}</p>
+                        </div>
+                        <div className="bg-bg border border-border rounded-lg p-2 text-center">
+                          <span className="block text-[9px] font-bold text-protein uppercase">Protein</span>
+                          <p className="text-sm font-extrabold text-protein">{sub.protein ? `${sub.protein}g` : "—"}</p>
+                        </div>
+                        <div className="bg-bg border border-border rounded-lg p-2 text-center">
+                          <span className="block text-[9px] font-bold text-carbs uppercase">Carbs</span>
+                          <p className="text-sm font-extrabold text-carbs">{sub.carbs ? `${sub.carbs}g` : "—"}</p>
+                        </div>
+                        <div className="bg-bg border border-border rounded-lg p-2 text-center">
+                          <span className="block text-[9px] font-bold text-fat uppercase">Fats</span>
+                          <p className="text-sm font-extrabold text-fat">{sub.fats ? `${sub.fats}g` : "—"}</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                          <Flame className="w-3.5 h-3.5" />
+                          Weekly Target
+                        </span>
+                        <span className="text-xs font-extrabold text-primary">
+                          {sub.weeklyCalories ? `${sub.weeklyCalories.toLocaleString()} kcal` : "—"}
+                          {sub.weeklyProtein ? ` · ${sub.weeklyProtein}g P` : ""}
+                          {sub.weeklyCarbs ? ` · ${sub.weeklyCarbs}g C` : ""}
+                          {sub.weeklyFats ? ` · ${sub.weeklyFats}g F` : ""}
+                        </span>
+                      </div>
+
+                      {/* Body stats */}
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-[10px] text-text-secondary">
+                        <div><strong className="text-text">{sub.weight ?? "—"} kg</strong> weight</div>
+                        <div><strong className="text-text">{sub.height ?? "—"} cm</strong> height</div>
+                        <div><strong className="text-text">{sub.BMI ?? "—"}</strong> BMI</div>
+                        <div><strong className="text-text capitalize">{sub.gender || "—"}</strong> · {sub.age ? `${sub.age}y` : "—"}</div>
+                        <div><strong className="text-text capitalize">{ACTIVITY_LABELS[sub.activityLevel] || sub.activityLevel || "—"}</strong> activity</div>
+                      </div>
+
+                      {/* Forbidden foods */}
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-error mb-1.5 flex items-center gap-1">
+                          <Ban className="w-3 h-3" />
+                          Forbidden Foods ({(sub.forbiddenFoods || []).length})
+                        </p>
+                        {(sub.forbiddenFoods || []).length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {sub.forbiddenFoods.map((value) => (
+                              <span
+                                key={value}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error/10 text-error border border-error/30 text-[10px] font-semibold"
+                              >
+                                <Ban className="w-2.5 h-2.5" />
+                                {forbiddenFoodLabel(value)}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-text-secondary italic">No restrictions — full menu allowed.</p>
+                        )}
+                      </div>
+
+                      {/* Weekly meals planner */}
+                      <div className="pt-1">
+                        <button
+                          onClick={() => toggleMealPlanner(sub)}
+                          className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-bg border border-border text-xs font-bold text-text hover:border-primary transition-colors min-h-[36px]"
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            <UtensilsCrossed className="w-3.5 h-3.5 text-primary" />
+                            Weekly Meals ({countPlannedMeals(sub.weeklyMeals)} assigned)
+                          </span>
+                          <ChevronDown
+                            className={`w-4 h-4 text-text-secondary transition-transform ${mealPlannerId === sub._id ? "rotate-180" : ""}`}
+                          />
+                        </button>
+
+                        {mealPlannerId === sub._id && (
+                          <div className="mt-2 space-y-2">
+                            {WEEK_DAYS.map((day) => (
+                              <div
+                                key={day}
+                                className="bg-bg border border-border rounded-lg p-2.5"
+                              >
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary">
+                                    {day}
+                                  </span>
+                                  <select
+                                    value=""
+                                    onChange={(e) => handleAddMealToDay(day, e.target.value)}
+                                    disabled={products.length === 0}
+                                    className="max-w-[55%] px-2 py-1 rounded-md bg-surface border border-border text-[10px] font-semibold text-primary focus:outline-none focus:border-primary disabled:opacity-60"
+                                  >
+                                    <option value="">+ Add meal...</option>
+                                    {products.map((prod) => (
+                                      <option key={prod._id} value={prod._id}>
+                                        {prod.name} · KD {(prod.price || 0).toFixed(3)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {(mealPlanDraft[day] || []).length === 0 ? (
+                                  <p className="text-[10px] text-text-secondary italic">No meals assigned.</p>
+                                ) : (
+                                  <div className="space-y-1.5">
+                                    {(mealPlanDraft[day] || []).map((meal) => {
+                                      const prod = products.find(
+                                        (p) => p._id === (typeof meal.productId === "object" ? meal.productId?._id : meal.productId),
+                                      );
+                                      const mealName =
+                                        prod?.name || meal.name || "Selected meal";
+                                      return (
+                                        <div
+                                          key={meal.key}
+                                          className="bg-surface border border-border rounded-md px-2 py-1.5"
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs font-bold text-text truncate">
+                                              {mealName}
+                                            </span>
+                                            <button
+                                              onClick={() => handleRemoveMealFromDay(day, meal.key)}
+                                              className="p-1 rounded text-text-secondary hover:text-error transition-colors shrink-0"
+                                              title="Remove meal"
+                                            >
+                                              <X className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                          <input
+                                            type="text"
+                                            value={meal.notes}
+                                            onChange={(e) =>
+                                              handleMealNoteChange(day, meal.key, e.target.value)
+                                            }
+                                            maxLength={500}
+                                            placeholder="Note for this meal (e.g., no salt, sauce on the side...)"
+                                            className="mt-1 w-full px-2 py-1 rounded bg-bg border border-border text-[11px] text-text placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() => handleSaveWeeklyMeals(sub._id)}
+                                disabled={savingMealsId}
+                                className="inline-flex items-center gap-1.5 flex-1 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed justify-center min-h-[36px]"
+                              >
+                                {savingMealsId ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Save className="w-3.5 h-3.5" />
+                                )}
+                                {savingMealsId ? "Saving..." : "Save Weekly Plan"}
+                              </button>
+                              <button
+                                onClick={() => setMealPlannerId(null)}
+                                disabled={savingMealsId}
+                                className="py-2 px-4 rounded-lg bg-bg border border-border text-xs font-semibold text-text-secondary hover:text-error transition-colors disabled:opacity-60 disabled:cursor-not-allowed min-h-[36px]"
+                              >
+                                Close
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Plan editing */}
+                      {isEditing ? (
+                        <div className="pt-3 border-t border-border space-y-2.5">
+                          <div className="grid sm:grid-cols-3 gap-2">
+                            <input
+                              type="text"
+                              value={subForm.package}
+                              onChange={(e) => setSubForm({ ...subForm, package: e.target.value })}
+                              placeholder="Package name"
+                              className="px-3 py-2 rounded-lg bg-bg border border-border text-xs font-semibold text-text placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                            />
+                            <select
+                              value={subForm.goal}
+                              onChange={(e) => setSubForm({ ...subForm, goal: e.target.value })}
+                              className="px-3 py-2 rounded-lg bg-bg border border-border text-xs font-semibold text-text focus:outline-none focus:border-primary capitalize"
+                            >
+                              <option value="">Select goal...</option>
+                              {Object.entries(GOAL_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={subForm.duration}
+                              onChange={(e) => setSubForm({ ...subForm, duration: e.target.value })}
+                              className="px-3 py-2 rounded-lg bg-bg border border-border text-xs font-semibold text-text focus:outline-none focus:border-primary"
+                            >
+                              <option value="">Select duration...</option>
+                              {SUBSCRIPTION_DURATIONS.map((duration) => (
+                                <option key={duration} value={duration}>{duration}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleSaveSubscription(sub._id)}
+                              disabled={savingSubId}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {savingSubId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                              Save Plan
+                            </button>
+                            <button
+                              onClick={handleCancelEditSubscription}
+                              disabled={savingSubId}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-bg border border-border text-xs font-semibold text-text-secondary hover:text-error transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenEditSubscription(sub)}
+                          className="w-full pt-3 border-t border-border inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-primary transition-colors min-h-[36px]"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          Edit Meal Plan / Subscription
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

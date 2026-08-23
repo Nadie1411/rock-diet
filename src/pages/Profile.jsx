@@ -2,21 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Calendar, ShieldCheck, LogOut, ArrowLeft, Package, BookOpen, Loader2, UtensilsCrossed, Ban, Pencil, X, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
-const FORBIDDEN_FOOD_OPTIONS = [
-  { value: 'peanuts', label: 'Peanuts' },
-  { value: 'dairy', label: 'Dairy' },
-  { value: 'eggs', label: 'Eggs' },
-  { value: 'gluten', label: 'Gluten' },
-  { value: 'seafood', label: 'Seafood' },
-  { value: 'red_meat', label: 'Red Meat' },
-  { value: 'pork', label: 'Pork' },
-  { value: 'chicken', label: 'Chicken' },
-  { value: 'soy', label: 'Soy' },
-  { value: 'mushrooms', label: 'Mushrooms' },
-  { value: 'sesame', label: 'Sesame' },
-  { value: 'spicy', label: 'Spicy Food' },
-];
+import { FORBIDDEN_FOOD_OPTIONS } from '../data/foodPreferences';
 
 export default function Profile() {
   const navigate = useNavigate();
