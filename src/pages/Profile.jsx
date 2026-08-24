@@ -1,8 +1,26 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Mail, Calendar, ShieldCheck, LogOut, ArrowLeft, Package, BookOpen, Loader2, UtensilsCrossed, Ban, Pencil, X, Check } from 'lucide-react';
+import { User, Mail, Calendar, ShieldCheck, LogOut, ArrowLeft, Package, BookOpen, Loader2, UtensilsCrossed, Ban, Pencil, X, Check, CalendarDays, Flame } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { FORBIDDEN_FOOD_OPTIONS } from '../data/foodPreferences';
+
+const GOAL_LABELS = {
+  weight_loss: 'Weight Loss',
+  maintenance: 'Maintenance',
+  bulking: 'Bulking',
+};
+
+const DAY_ORDER = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+
+const formatProfileDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '—';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -82,6 +100,38 @@ export default function Profile() {
   };
 
   const fullName = user.userName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Rock Diet User';
+
+  const weeklyMeals = Array.isArray(user.weeklyMeals)
+    ? [...user.weeklyMeals].sort(
+        (a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day),
+      )
+    : [];
+  const totalPlanMeals = weeklyMeals.reduce((sum, d) => sum + (d.meals?.length || 0), 0);
+  const planTotals = weeklyMeals.reduce(
+    (acc, d) => {
+      d.meals?.forEach((m) => {
+        acc.calories += m.calories || 0;
+        acc.protein += m.protein || 0;
+        acc.carbs += m.carbs || 0;
+        acc.fats += m.fats || 0;
+      });
+      return acc;
+    },
+    { calories: 0, protein: 0, carbs: 0, fats: 0 },
+  );
+
+  const now = new Date();
+  const subDaysLeft =
+    user.subscriptionEnd != null
+      ? Math.max(0, Math.ceil((new Date(user.subscriptionEnd) - now) / 86400000))
+      : null;
+  const subscriptionActive =
+    user.subscriptionEnd != null && new Date(user.subscriptionEnd) > now;
+
+  const planExpired =
+    weeklyMeals.length > 0 &&
+    user.weeklyMealsExpiresAt &&
+    new Date(user.weeklyMealsExpiresAt) < now;
 
   return (
     <div className="min-h-screen bg-bg text-text py-8">
@@ -201,6 +251,186 @@ export default function Profile() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+
+        {/* Subscription Window */}
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 shadow-sm mb-8">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-bg flex items-center justify-center shrink-0">
+                <CalendarDays className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-text">My Subscription</h3>
+                <p className="text-xs text-text-secondary">
+                  Your plan window and renewal dates.
+                </p>
+              </div>
+            </div>
+
+            {user.subscriptionEnd != null && (
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 ${
+                  subscriptionActive
+                    ? 'bg-success/10 text-success border border-success/30'
+                    : 'bg-error/10 text-error border border-error/30'
+                }`}
+              >
+                {subscriptionActive
+                  ? `Active · ${subDaysLeft} day${subDaysLeft === 1 ? '' : 's'} left`
+                  : 'Expired'}
+              </span>
+            )}
+          </div>
+
+          {user.package || user.subscriptionEnd != null ? (
+            <>
+              <div className="flex flex-wrap gap-2 mb-5">
+                {user.package && (
+                  <span className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold capitalize">
+                    {user.package}
+                  </span>
+                )}
+                {user.goal && (
+                  <span className="px-3 py-1.5 rounded-full bg-accent/10 text-accent text-xs font-semibold capitalize">
+                    {GOAL_LABELS[user.goal] || user.goal.replace(/_/g, ' ')}
+                  </span>
+                )}
+                {user.duration && (
+                  <span className="px-3 py-1.5 rounded-full bg-bg text-text-secondary border border-border text-xs font-semibold">
+                    {user.duration} week{user.duration === 1 ? '' : 's'}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="bg-bg border border-border rounded-xl p-4">
+                  <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+                    Start Date
+                  </p>
+                  <p className="text-sm font-extrabold text-text mt-1">
+                    {formatProfileDate(user.subscriptionStart)}
+                  </p>
+                </div>
+                <div className="bg-bg border border-border rounded-xl p-4">
+                  <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+                    End Date
+                  </p>
+                  <p className="text-sm font-extrabold text-text mt-1">
+                    {formatProfileDate(user.subscriptionEnd)}
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-text-secondary italic">
+              No subscription yet — pick a plan to get started.
+            </p>
+          )}
+        </div>
+
+        {/* Weekly Meal Plan */}
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 shadow-sm mb-8">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-bg flex items-center justify-center shrink-0">
+                <UtensilsCrossed className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-text">My Weekly Meal Plan</h3>
+                <p className="text-xs text-text-secondary">
+                  {totalPlanMeals > 0
+                    ? `${totalPlanMeals} planned meal${totalPlanMeals === 1 ? '' : 's'} this week`
+                    : 'Assigned by your coach.'}
+                </p>
+              </div>
+            </div>
+
+            {user.weeklyMealsExpiresAt && (
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 ${
+                  planExpired
+                    ? 'bg-error/10 text-error border border-error/30'
+                    : 'bg-success/10 text-success border border-success/30'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                {planExpired ? 'Expired' : `Until ${formatProfileDate(user.weeklyMealsExpiresAt)}`}
+              </span>
+            )}
+          </div>
+
+          {weeklyMeals.length > 0 ? (
+            <>
+              {planTotals.calories > 0 && (
+                <div className="flex flex-wrap gap-2 mb-5">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold">
+                    <Flame className="w-3.5 h-3.5" />
+                    {Math.round(planTotals.calories)} kcal / week
+                  </span>
+                  <span className="px-3 py-1.5 rounded-full bg-protein/10 text-protein text-xs font-semibold">
+                    {Math.round(planTotals.protein)}g Protein
+                  </span>
+                  <span className="px-3 py-1.5 rounded-full bg-carbs/10 text-carbs text-xs font-semibold">
+                    {Math.round(planTotals.carbs)}g Carbs
+                  </span>
+                  <span className="px-3 py-1.5 rounded-full bg-fat/10 text-fat text-xs font-semibold">
+                    {Math.round(planTotals.fats)}g Fats
+                  </span>
+                </div>
+              )}
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {weeklyMeals.map((dayEntry) => (
+                  <div
+                    key={dayEntry.day}
+                    className={`rounded-xl border p-4 ${
+                      dayEntry.meals?.length > 0
+                        ? 'border-border bg-bg'
+                        : 'border-border/60 bg-bg/50'
+                    }`}
+                  >
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary mb-2.5">
+                      {dayEntry.day}
+                    </p>
+                    {dayEntry.meals?.length > 0 ? (
+                      <div className="space-y-2">
+                        {dayEntry.meals.map((meal, idx) => (
+                          <div
+                            key={`${dayEntry.day}-${idx}`}
+                            className="bg-surface border border-border rounded-lg px-3 py-2"
+                          >
+                            <p className="text-xs font-bold text-text leading-snug">
+                              {meal.name ||
+                                meal.productId?.name ||
+                                'Custom meal'}
+                            </p>
+                            {meal.calories > 0 && (
+                              <p className="text-[10px] font-semibold text-text-secondary mt-0.5">
+                                {meal.calories} kcal · P {meal.protein || 0}g · C{' '}
+                                {meal.carbs || 0}g · F {meal.fats || 0}g
+                              </p>
+                            )}
+                            {meal.notes && (
+                              <p className="text-[10px] italic text-text-secondary mt-1 leading-snug">
+                                “{meal.notes}”
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-text-secondary italic">Rest day</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-text-secondary italic">
+              No meal plan assigned yet — your coach will set one up for you.
+            </p>
           )}
         </div>
 

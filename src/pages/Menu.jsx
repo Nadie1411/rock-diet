@@ -158,6 +158,10 @@ export default function Menu() {
               const catObj = typeof item.categoryId === 'object' ? item.categoryId : null;
               const catName = catObj ? catObj.name : 'Healthy Meal';
               const imgUrl = item.image?.secure_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+              const protein = Math.round(item.protein || 0);
+              const carbs = Math.round(item.carbs || 0);
+              const fats = Math.round(item.fats || 0);
+              const calories = Math.round(protein * 4 + carbs * 4 + fats * 9);
 
               return (
                 <Link
@@ -198,6 +202,21 @@ export default function Menu() {
                       <p className="text-text-secondary text-xs mt-1 line-clamp-2 leading-relaxed">
                         {item.description || 'Nutritious & delicious meal crafted with high-quality ingredients.'}
                       </p>
+
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1">
+                        <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
+                          {calories} kcal
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-protein/10 text-protein text-[10px] font-bold">
+                          P {protein}g
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-carbs/10 text-carbs text-[10px] font-bold">
+                          C {carbs}g
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-fat/10 text-fat text-[10px] font-bold">
+                          F {fats}g
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t border-border">

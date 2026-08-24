@@ -22,6 +22,8 @@ import {
   Save,
   Flame,
   UtensilsCrossed,
+  ClipboardList,
+  UserPlus,
   ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -31,6 +33,7 @@ import { orderService } from "../services/orderService";
 import { offerService } from "../services/offerService";
 import { couponService } from "../services/couponService";
 import { addonService } from "../services/addonService";
+import { planService } from "../services/planService";
 import { userService } from "../services/userService";
 import { forbiddenFoodLabel } from "../data/foodPreferences";
 import { ApiError } from "../services/api";
@@ -76,6 +79,26 @@ const makeMealKey = () =>
 const countPlannedMeals = (weeklyMeals = []) =>
   weeklyMeals.reduce((sum, day) => sum + (day.meals?.length || 0), 0);
 
+const getPlanTotals = (plan) => {
+  let meals = 0;
+  let calories = 0;
+  let protein = 0;
+  let carbs = 0;
+  let fats = 0;
+
+  for (const day of plan.days || []) {
+    for (const meal of day.meals || []) {
+      meals += 1;
+      calories += meal.calories || 0;
+      protein += meal.protein || 0;
+      carbs += meal.carbs || 0;
+      fats += meal.fats || 0;
+    }
+  }
+
+  return { meals, calories, protein, carbs, fats };
+};
+
 const formatAdminDate = (value) =>
   value
     ? new Date(value).toLocaleDateString("en-GB", {
@@ -120,6 +143,19 @@ export default function Admin() {
   const [mealPlannerId, setMealPlannerId] = useState(null);
   const [mealPlanDraft, setMealPlanDraft] = useState({});
   const [savingMealsId, setSavingMealsId] = useState(false);
+
+  // Meal plans state
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [planBuilderOpen, setPlanBuilderOpen] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState(null);
+  const [planForm, setPlanForm] = useState({ name: "", description: "", goal: "" });
+  const [planDraft, setPlanDraft] = useState({});
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [planGoalFilter, setPlanGoalFilter] = useState("all");
+  const [assignPanelId, setAssignPanelId] = useState(null);
+  const [assignUserId, setAssignUserId] = useState("");
+  const [assigningId, setAssigningId] = useState(null);
 
   // Orders state
   const [orders, setOrders] = useState([]);
@@ -230,6 +266,19 @@ export default function Admin() {
     }
   }, []);
 
+  // Fetch Meal Plans
+  const fetchPlans = useCallback(async () => {
+    setPlansLoading(true);
+    try {
+      const res = await planService.getPlans();
+      setPlans(res.data || []);
+    } catch {
+      setError("Failed to fetch meal plans.");
+    } finally {
+      setPlansLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isAdmin) {
       fetchCategories();
@@ -239,6 +288,7 @@ export default function Admin() {
       fetchCoupons();
       fetchAddons();
       fetchSubscribers();
+      fetchPlans();
     }
   }, [
     isAdmin,
@@ -249,6 +299,7 @@ export default function Admin() {
     fetchCoupons,
     fetchAddons,
     fetchSubscribers,
+    fetchPlans,
   ]);
 
   if (authLoading) {
@@ -881,6 +932,175 @@ export default function Admin() {
     );
   });
 
+  const handleOpenCreatePlan = () => {
+    setPlanForm({ name: "", description: "", goal: "" });
+    setPlanDraft({});
+    setEditingPlanId(null);
+    setError("");
+    setPlanBuilderOpen(true);
+  };
+
+  const handleOpenEditPlan = (plan) => {
+    const draft = {};
+    for (const day of WEEK_DAYS) {
+      draft[day] = (
+        (plan.days || []).find((entry) => entry.day === day)?.meals || []
+      ).map((meal) => ({
+        key: makeMealKey(),
+        productId:
+          typeof meal.productId === "object" ? meal.productId._id : meal.productId,
+        notes: meal.notes || "",
+      }));
+    }
+    setPlanForm({ name: plan.name, description: plan.description || "", goal: plan.goal || "" });
+    setPlanDraft(draft);
+    setEditingPlanId(plan._id);
+    setAssignPanelId(null);
+    setError("");
+    setPlanBuilderOpen(true);
+  };
+
+  const closePlanBuilder = () => {
+    setPlanBuilderOpen(false);
+    setEditingPlanId(null);
+    setPlanForm({ name: "", description: "", goal: "" });
+    setPlanDraft({});
+  };
+
+  const handleAddPlanMealToDay = (day, productId) => {
+    if (!productId) return;
+    setPlanDraft((prev) => ({
+      ...prev,
+      [day]: [
+        ...(prev[day] || []),
+        { key: makeMealKey(), productId, notes: "" },
+      ],
+    }));
+  };
+
+  const handleRemovePlanMealFromDay = (day, key) => {
+    setPlanDraft((prev) => ({
+      ...prev,
+      [day]: (prev[day] || []).filter((meal) => meal.key !== key),
+    }));
+  };
+
+  const handlePlanMealNoteChange = (day, key, notes) => {
+    setPlanDraft((prev) => ({
+      ...prev,
+      [day]: (prev[day] || []).map((meal) =>
+        meal.key === key ? { ...meal, notes } : meal,
+      ),
+    }));
+  };
+
+  const buildDaysPayloadFromPlanDraft = () =>
+    WEEK_DAYS.filter((day) => (planDraft[day] || []).length > 0).map((day) => ({
+      day,
+      meals: planDraft[day].map(({ productId, notes }) => ({
+        productId,
+        notes,
+      })),
+    }));
+
+  const handleSavePlan = async () => {
+    if (!planForm.name.trim()) {
+      setError("Plan name is required.");
+      return;
+    }
+
+    setSavingPlan(true);
+    try {
+      const payload = {
+        name: planForm.name.trim(),
+        description: planForm.description.trim(),
+        goal: planForm.goal,
+        days: buildDaysPayloadFromPlanDraft(),
+      };
+
+      if (editingPlanId) {
+        await planService.updatePlan(editingPlanId, payload);
+        setSuccess("Meal plan updated successfully!");
+      } else {
+        await planService.createPlan(payload);
+        setSuccess("Meal plan created successfully!");
+      }
+
+      setTimeout(() => setSuccess(""), 3000);
+      closePlanBuilder();
+      fetchPlans();
+    } catch (err) {
+      if (err instanceof ApiError && err.data?.error?.length) {
+        setError(err.data.error[0].message);
+      } else {
+        setError(err.message || "Failed to save meal plan.");
+      }
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  const handleDeletePlan = async (planId) => {
+    if (!window.confirm("Are you sure you want to delete this meal plan?"))
+      return;
+    try {
+      await planService.deletePlan(planId);
+      setSuccess("Meal plan deleted successfully!");
+      setTimeout(() => setSuccess(""), 3000);
+      fetchPlans();
+    } catch (err) {
+      setError(err.message || "Failed to delete meal plan.");
+    }
+  };
+
+  const toggleAssignPanel = (plan) => {
+    if (assignPanelId === plan._id) {
+      setAssignPanelId(null);
+      setAssignUserId("");
+      return;
+    }
+    if (subscribers.length === 0 && !subsLoading) {
+      fetchSubscribers();
+    }
+    setAssignUserId("");
+    setError("");
+    setAssignPanelId(plan._id);
+  };
+
+  const handleAssignPlan = async (plan) => {
+    if (!assignUserId) {
+      setError("Select a subscriber to assign this plan to.");
+      return;
+    }
+
+    const target = subscribers.find((sub) => sub._id === assignUserId);
+    const targetName = target
+      ? target.userName ||
+        `${target.firstName} ${target.lastName}`
+      : "this user";
+
+    if (
+      !window.confirm(
+        `Assign "${plan.name}" to ${targetName}? This replaces their current weekly meals and emails them the new plan.`,
+      )
+    )
+      return;
+
+    setAssigningId(plan._id);
+    try {
+      await planService.assignPlan(plan._id, assignUserId);
+      setSuccess(`Plan assigned to ${targetName} — they've been emailed.`);
+      setTimeout(() => setSuccess(""), 4000);
+      setAssignPanelId(null);
+      setAssignUserId("");
+      fetchSubscribers();
+    } catch (err) {
+      setError(err.message || "Failed to assign meal plan.");
+    } finally {
+      setAssigningId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-bg text-text py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -973,6 +1193,18 @@ export default function Admin() {
               <Puzzle className="w-4 h-4" />
               <span className="hidden sm:inline">Addons</span>
               <span className="sm:hidden">{addons.length}</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab("plans"); setSearchParams({ tab: "plans" }); }}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === "plans"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-text-secondary hover:text-text"
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              <span className="hidden sm:inline">Meal Plans</span>
+              <span className="sm:hidden">{plans.length}</span>
             </button>
             <button
               onClick={() => { setActiveTab("subscribers"); setSearchParams({ tab: "subscribers" }); }}
@@ -1669,6 +1901,361 @@ export default function Admin() {
         )}
 
         {/* TAB 7: SUBSCRIBERS MANAGEMENT */}
+        {activeTab === "plans" && (
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-text">Custom Meal Plans</h2>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Build reusable weekly plans, then assign them to any subscriber.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={handleOpenCreatePlan}
+                  disabled={planBuilderOpen}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Plan
+                </button>
+                <button
+                  onClick={fetchPlans}
+                  disabled={plansLoading}
+                  className="p-2 rounded-lg bg-surface border border-border text-text-secondary hover:text-primary hover:border-primary transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center shrink-0"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${plansLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+            </div>
+
+            {planBuilderOpen && (
+              <div className="bg-surface border border-border rounded-xl p-4 sm:p-5 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-extrabold text-text">
+                    {editingPlanId ? "Edit Meal Plan" : "Create New Meal Plan"}
+                  </h3>
+                  <button
+                    onClick={closePlanBuilder}
+                    disabled={savingPlan}
+                    className="p-1.5 rounded-md text-text-secondary hover:text-error transition-colors"
+                    title="Close builder"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    value={planForm.name}
+                    onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
+                    maxLength={100}
+                    placeholder="Bundle name (e.g., Weight Loss Week)"
+                    className="px-3 py-2 rounded-lg bg-bg border border-border text-xs font-semibold text-text placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                  />
+                  <select
+                    value={planForm.goal}
+                    onChange={(e) => setPlanForm({ ...planForm, goal: e.target.value })}
+                    className="px-3 py-2 rounded-lg bg-bg border border-border text-xs font-semibold text-text focus:outline-none focus:border-primary capitalize"
+                  >
+                    <option value="">Select bundle goal (optional)...</option>
+                    {Object.entries(GOAL_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={planForm.description}
+                    onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
+                    maxLength={500}
+                    placeholder="Short description (optional)"
+                    className="px-3 py-2 rounded-lg bg-bg border border-border text-xs font-semibold text-text placeholder:text-text-secondary focus:outline-none focus:border-primary sm:col-span-2 lg:col-span-1"
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2">
+                  {WEEK_DAYS.map((day) => (
+                    <div key={day} className="bg-bg border border-border rounded-lg p-2.5">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary">
+                          {day}
+                        </span>
+                        <select
+                          value=""
+                          onChange={(e) => handleAddPlanMealToDay(day, e.target.value)}
+                          disabled={products.length === 0}
+                          className="max-w-[55%] px-2 py-1 rounded-md bg-surface border border-border text-[10px] font-semibold text-primary focus:outline-none focus:border-primary disabled:opacity-60"
+                        >
+                          <option value="">+ Add meal...</option>
+                          {products.map((prod) => (
+                            <option key={prod._id} value={prod._id}>
+                              {prod.name} · KD {(prod.price || 0).toFixed(3)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {(planDraft[day] || []).length === 0 ? (
+                        <p className="text-[10px] text-text-secondary italic">No meals assigned.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {(planDraft[day] || []).map((meal) => {
+                            const prod = products.find((p) => p._id === meal.productId);
+                            const mealName =
+                              prod?.name || meal.name || "Selected meal";
+                            return (
+                              <div
+                                key={meal.key}
+                                className="bg-surface border border-border rounded-md px-2 py-1.5"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-bold text-text truncate">
+                                    {mealName}
+                                  </span>
+                                  <button
+                                    onClick={() => handleRemovePlanMealFromDay(day, meal.key)}
+                                    className="p-1 rounded text-text-secondary hover:text-error transition-colors shrink-0"
+                                    title="Remove meal"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={meal.notes}
+                                  onChange={(e) =>
+                                    handlePlanMealNoteChange(day, meal.key, e.target.value)
+                                  }
+                                  maxLength={500}
+                                  placeholder="Note for this meal (e.g., no salt, sauce on the side...)"
+                                  className="mt-1 w-full px-2 py-1 rounded bg-bg border border-border text-[11px] text-text placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={handleSavePlan}
+                    disabled={savingPlan}
+                    className="inline-flex items-center gap-1.5 flex-1 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed justify-center min-h-[36px]"
+                  >
+                    {savingPlan ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    {savingPlan ? "Saving..." : editingPlanId ? "Save Changes" : "Create Plan"}
+                  </button>
+                  <button
+                    onClick={closePlanBuilder}
+                    disabled={savingPlan}
+                    className="py-2 px-4 rounded-lg bg-bg border border-border text-xs font-semibold text-text-secondary hover:text-error transition-colors disabled:opacity-60 disabled:cursor-not-allowed min-h-[36px]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {plansLoading ? (
+              <div className="py-16 text-center">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
+              </div>
+            ) : plans.length === 0 ? (
+              <div className="bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
+                <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-semibold">No meal plan bundles yet</p>
+                <p className="text-xs mt-1">Create a reusable bundle (e.g., Weight Loss, Bulking) and assign it to subscribers.</p>
+                <button
+                  onClick={handleOpenCreatePlan}
+                  className="mt-3 text-xs font-semibold text-primary hover:underline"
+                >
+                  Create your first bundle
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[["all", "All Bundles"], ...Object.entries(GOAL_LABELS)].map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setPlanGoalFilter(value)}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                        planGoalFilter === value
+                          ? "bg-primary text-white shadow-sm"
+                          : "bg-surface border border-border text-text-secondary hover:text-primary hover:border-primary"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid lg:grid-cols-2 gap-4">
+                  {plans.filter((plan) =>
+                    planGoalFilter === "all" ? true : (plan.goal || "") === planGoalFilter,
+                  ).length === 0 ? (
+                    <div className="bg-surface border border-border rounded-xl p-12 text-center text-text-secondary lg:col-span-2">
+                      <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm font-semibold">No bundles for this goal yet</p>
+                    </div>
+                  ) : (
+                    plans
+                      .filter((plan) =>
+                        planGoalFilter === "all" ? true : (plan.goal || "") === planGoalFilter,
+                      )
+                      .map((plan) => {
+                  const totals = getPlanTotals(plan);
+                  const dayCounts = Object.fromEntries(
+                    WEEK_DAYS.map((day) => [
+                      day,
+                      (plan.days || []).find((entry) => entry.day === day)?.meals?.length || 0,
+                    ]),
+                  );
+                  return (
+                    <div
+                      key={plan._id}
+                      className="bg-surface border border-border rounded-xl p-4 sm:p-5 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-extrabold text-text truncate">{plan.name}</h3>
+                          {plan.goal && (
+                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/30 text-[9px] font-bold uppercase tracking-wider">
+                              {GOAL_LABELS[plan.goal] || plan.goal}
+                            </span>
+                          )}
+                          {plan.description && (
+                            <p className="text-[11px] text-text-secondary mt-0.5 line-clamp-2">
+                              {plan.description}
+                            </p>
+                          )}
+                        </div>
+                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold whitespace-nowrap shrink-0">
+                          {totals.meals} meals/week
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[11px] font-extrabold">
+                        <span className="inline-flex items-center gap-1 text-primary">
+                          <Flame className="w-3.5 h-3.5" />
+                          {totals.calories.toLocaleString()} kcal
+                        </span>
+                        <span className="text-protein">{totals.protein}g P</span>
+                        <span className="text-carbs">{totals.carbs}g C</span>
+                        <span className="text-fat">{totals.fats}g F</span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1">
+                        {WEEK_DAYS.map((day) => (
+                          <span
+                            key={day}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              dayCounts[day] > 0
+                                ? "bg-primary/10 text-primary"
+                                : "bg-bg text-text-secondary border border-border"
+                            }`}
+                          >
+                            {day.slice(0, 3)} · {dayCounts[day]}
+                          </span>
+                        ))}
+                      </div>
+
+                      {assignPanelId === plan._id && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-2">
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-primary">
+                            Assign to subscriber
+                          </label>
+                          <select
+                            value={assignUserId}
+                            onChange={(e) => setAssignUserId(e.target.value)}
+                            className="w-full px-2 py-2 rounded-md bg-surface border border-border text-xs font-semibold text-text focus:outline-none focus:border-primary"
+                          >
+                            <option value="">Select subscriber...</option>
+                            {subscribers.map((sub) => (
+                              <option key={sub._id} value={sub._id}>
+                                {(sub.userName ||
+                                  `${sub.firstName} ${sub.lastName}`) +
+                                  (sub.email ? ` — ${sub.email}` : "")}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-[10px] text-text-secondary">
+                            Replaces the subscriber's current week and emails them the plan.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleAssignPlan(plan)}
+                              disabled={assigningId === plan._id || !assignUserId}
+                              className="inline-flex items-center gap-1.5 flex-1 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed justify-center min-h-[34px]"
+                            >
+                              {assigningId === plan._id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <UserPlus className="w-3.5 h-3.5" />
+                              )}
+                              {assigningId === plan._id ? "Assigning..." : "Confirm Assign"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAssignPanelId(null);
+                                setAssignUserId("");
+                              }}
+                              disabled={assigningId === plan._id}
+                              className="py-2 px-3 rounded-lg bg-bg border border-border text-xs font-semibold text-text-secondary hover:text-error transition-colors disabled:opacity-60 min-h-[34px]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={() => toggleAssignPanel(plan)}
+                          className={`inline-flex items-center gap-1.5 flex-1 py-2 rounded-lg text-xs font-bold transition-all shadow-sm justify-center min-h-[34px] ${
+                            assignPanelId === plan._id
+                              ? "bg-primary-light text-white"
+                              : "bg-primary hover:bg-primary-light text-white"
+                          }`}
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          Assign
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditPlan(plan)}
+                          disabled={planBuilderOpen}
+                          className="py-2 px-3 rounded-lg bg-bg border border-border text-xs font-semibold text-text-secondary hover:text-primary hover:border-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed min-h-[34px]"
+                          title="Edit plan"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlan(plan._id)}
+                          className="py-2 px-3 rounded-lg bg-bg border border-border text-xs font-semibold text-text-secondary hover:text-error hover:border-error transition-colors min-h-[34px]"
+                          title="Delete plan"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {activeTab === "subscribers" && (
           <div className="space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
