@@ -14,6 +14,7 @@ import {
   CheckCheck,
   CheckCircle,
   Package,
+  Headphones,
 } from "lucide-react";
 import rockDietLogo from "../assets/rock-diet-logo.png";
 import { useAuth } from "../context/AuthContext";
@@ -64,6 +65,9 @@ export default function Navbar() {
     closeMenu();
     navigate("/");
   };
+
+  const notificationTarget = (notif) =>
+    notif.type === "support" ? "/admin?tab=support" : "/admin?tab=orders";
 
   const handleNotificationBellClick = useCallback(() => {
     toggleDropdown();
@@ -202,7 +206,7 @@ export default function Navbar() {
                             onClick={() => {
                               markAsRead(notif._id);
                               closeDropdown();
-                              navigate("/admin?tab=orders");
+                              navigate(notificationTarget(notif));
                             }}
                             className="w-full text-left"
                           >
@@ -211,13 +215,17 @@ export default function Navbar() {
                                 className={`mt-0.5 p-1.5 rounded-lg ${
                                   notif.handled
                                     ? "bg-success/10 text-success"
-                                    : notif.type === "order"
-                                      ? "bg-primary/10 text-primary"
-                                      : "bg-accent/10 text-accent"
+                                    : notif.type === "support"
+                                      ? "bg-warning/10 text-warning"
+                                      : notif.type === "order"
+                                        ? "bg-primary/10 text-primary"
+                                        : "bg-accent/10 text-accent"
                                 }`}
                               >
                                 {notif.handled ? (
                                   <CheckCircle className="w-4 h-4" />
+                                ) : notif.type === "support" ? (
+                                  <Headphones className="w-4 h-4" />
                                 ) : (
                                   <Package className="w-4 h-4" />
                                 )}
@@ -270,7 +278,11 @@ export default function Navbar() {
                       <button
                           onClick={() => {
                             closeDropdown();
-                            navigate("/admin?tab=orders");
+                            navigate(
+                              notifications[0]?.type === "support" && notifications.every((n) => n.type === "support")
+                                ? "/admin?tab=support"
+                                : "/admin?tab=orders"
+                            );
                           }}
                         className="text-xs font-bold text-primary hover:text-primary-light transition-colors"
                       >

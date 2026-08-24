@@ -25,6 +25,8 @@ import {
   ClipboardList,
   UserPlus,
   ChevronDown,
+  Headphones,
+  MessageSquareText,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { categoryService } from "../services/categoryService";
@@ -35,6 +37,7 @@ import { couponService } from "../services/couponService";
 import { addonService } from "../services/addonService";
 import { planService } from "../services/planService";
 import { userService } from "../services/userService";
+import { supportService } from "../services/supportService";
 import { forbiddenFoodLabel } from "../data/foodPreferences";
 import { ApiError } from "../services/api";
 
@@ -156,6 +159,11 @@ export default function Admin() {
   const [assignPanelId, setAssignPanelId] = useState(null);
   const [assignUserId, setAssignUserId] = useState("");
   const [assigningId, setAssigningId] = useState(null);
+
+  // Support tickets state
+  const [tickets, setTickets] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [resolvingTicketId, setResolvingTicketId] = useState(null);
 
   // Orders state
   const [orders, setOrders] = useState([]);
@@ -279,6 +287,19 @@ export default function Admin() {
     }
   }, []);
 
+  // Fetch Support Tickets
+  const fetchTickets = useCallback(async () => {
+    setTicketsLoading(true);
+    try {
+      const res = await supportService.getTickets();
+      setTickets(res.data || []);
+    } catch {
+      setError("Failed to fetch support tickets.");
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isAdmin) {
       fetchCategories();
@@ -289,6 +310,7 @@ export default function Admin() {
       fetchAddons();
       fetchSubscribers();
       fetchPlans();
+      fetchTickets();
     }
   }, [
     isAdmin,
@@ -300,6 +322,7 @@ export default function Admin() {
     fetchAddons,
     fetchSubscribers,
     fetchPlans,
+    fetchTickets,
   ]);
 
   if (authLoading) {
@@ -1101,6 +1124,27 @@ export default function Admin() {
     }
   };
 
+  // SUPPORT TICKET ACTIONS
+  const handleResolveTicket = async (ticketId) => {
+    setResolvingTicketId(ticketId);
+    try {
+      await supportService.resolveTicket(ticketId);
+      setTickets((prev) =>
+        prev.map((t) =>
+          t._id === ticketId
+            ? { ...t, status: "resolved", resolvedAt: new Date().toISOString() }
+            : t
+        )
+      );
+      setSuccess("Support ticket resolved.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to resolve support ticket.");
+    } finally {
+      setResolvingTicketId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-bg text-text py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1121,7 +1165,7 @@ export default function Admin() {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-1 bg-bg p-1 rounded-lg border border-border shadow-sm overflow-x-auto flex-nowrap min-w-0 scrollbar-hide">
+          <div className="flex items-center gap-1 bg-bg p-1 rounded-lg border border-border shadow-sm flex-wrap">
             <button
               onClick={() => { setActiveTab("products"); setSearchParams({ tab: "products" }); }}
               className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
@@ -1217,6 +1261,23 @@ export default function Admin() {
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Subscribers</span>
               <span className="sm:hidden">{subscribers.length}</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab("support"); setSearchParams({ tab: "support" }); }}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === "support"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-text-secondary hover:text-text"
+              }`}
+            >
+              <Headphones className="w-4 h-4" />
+              <span className="hidden sm:inline">Support</span>
+              <span className={`sm:hidden ${tickets.some((t) => t.status === "open") ? "text-error font-extrabold" : ""}`}>
+                {tickets.filter((t) => t.status === "open").length || tickets.length}
+              </span>
+              {activeTab !== "support" && tickets.some((t) => t.status === "open") && (
+                <span className="w-2 h-2 rounded-full bg-error animate-pulse shrink-0 hidden sm:block" />
+              )}
             </button>
           </div>
         </div>
@@ -2612,6 +2673,150 @@ export default function Admin() {
                           Edit Meal Plan / Subscription
                         </button>
                       )}
+                     </div>
+                   );
+                 })}
+               </div>
+             )}
+           </div>
+         )}
+
+        {/* TAB 8: SUPPORT REQUESTS */}
+        {activeTab === "support" && (
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-text">Support Requests</h2>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Customer call-back requests from the Customer Service page.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {tickets.some((t) => t.status === "open") && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-warning/10 text-warning text-[11px] font-extrabold border border-warning/20">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {tickets.filter((t) => t.status === "open").length} open
+                  </span>
+                )}
+                <button
+                  onClick={fetchTickets}
+                  disabled={ticketsLoading}
+                  className="p-2 rounded-lg bg-surface border border-border text-text-secondary hover:text-primary hover:border-primary transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center shrink-0"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${ticketsLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+            </div>
+
+            {ticketsLoading ? (
+              <div className="flex justify-center py-16">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+              </div>
+            ) : tickets.length === 0 ? (
+              <div className="bg-surface border border-border border-dashed rounded-xl py-14 px-6 text-center">
+                <Headphones className="w-10 h-10 mx-auto mb-3 text-text-secondary opacity-40" />
+                <h3 className="text-sm font-bold text-text">No support requests yet</h3>
+                <p className="text-xs text-text-secondary mt-1">
+                  When customers request a call back from the Customer Service page, they'll appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {tickets.map((ticket) => {
+                  const isOpen = ticket.status === "open";
+                  return (
+                    <div
+                      key={ticket._id}
+                      className={`bg-surface border rounded-xl p-4 sm:p-5 shadow-sm space-y-3 ${
+                        isOpen ? "border-warning/40" : "border-border opacity-75"
+                      }`}
+                    >
+                      {/* Header: status + date */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide border ${
+                            isOpen
+                              ? "bg-warning/10 text-warning border-warning/30"
+                              : "bg-success/10 text-success border-success/30"
+                          }`}
+                        >
+                          {isOpen ? "Open" : "Resolved"}
+                        </span>
+                        <span className="text-[11px] text-text-secondary">
+                          {new Date(ticket.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+
+                      {/* Caller identity */}
+                      <a
+                        href={`tel:${ticket.phone}`}
+                        className="flex items-center gap-2 w-fit group/phone"
+                        title="Call this number"
+                      >
+                        <span className={`p-2 rounded-lg shrink-0 ${isOpen ? "bg-primary/10 text-primary" : "bg-bg text-text-secondary"}`}>
+                          <Phone className="w-4 h-4" />
+                        </span>
+                        <span className="font-bold text-sm text-text group-hover/phone:text-primary transition-colors">
+                          {ticket.phone}
+                        </span>
+                      </a>
+
+                      {/* Query */}
+                      <div className="flex items-start gap-2">
+                        <MessageSquareText className="w-4 h-4 text-text-secondary shrink-0 mt-0.5" />
+                        <p className="text-xs text-text leading-relaxed whitespace-pre-wrap break-words">
+                          {ticket.query}
+                        </p>
+                      </div>
+
+                      {(ticket.userName || ticket.userId) && (
+                        <p className="text-[11px] text-text-secondary">
+                          Account:{' '}
+                          <span className="font-semibold">
+                            {typeof ticket.userId === "object" && ticket.userId?.userName
+                              ? `${ticket.userId.userName} (${ticket.userId.email || "registered user"})`
+                              : ticket.userName || "Registered user"}
+                          </span>
+                        </p>
+                      )}
+
+                      {/* Actions */}
+                      <div className="pt-2 border-t border-border flex items-center gap-2">
+                        {isOpen ? (
+                          <>
+                            <button
+                              onClick={() => handleResolveTicket(ticket._id)}
+                              disabled={resolvingTicketId === ticket._id}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-success hover:bg-success/90 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {resolvingTicketId === ticket._id ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  Resolving...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  Mark as Resolved
+                                </>
+                              )}
+                            </button>
+                            <a
+                              href={`tel:${ticket.phone}`}
+                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-bg border border-border text-xs font-bold text-text-secondary hover:text-primary hover:border-primary transition-colors"
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                              Call Now
+                            </a>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-success">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Handled{ticket.resolvedAt ? ` on ${new Date(ticket.resolvedAt).toLocaleDateString()}` : ""}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

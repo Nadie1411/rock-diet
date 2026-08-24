@@ -18,7 +18,9 @@ import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { NotificationProvider } from './context/NotificationContext';
 import NotFound from './pages/NotFound';
+import CustomerService from './pages/CustomerService';
 import AppDownloadBanner from './components/AppDownloadBanner';
+import CustomerServiceButton from './components/CustomerServiceButton';
 
 function GuestRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -50,9 +52,11 @@ function App() {
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/payment/success" element={<PaymentSuccess />} />
                   <Route path="/payment/failure" element={<PaymentFailure />} />
+                  <Route path="/customer-service" element={<CustomerService />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
+              <CustomerServiceButton />
               <Footer />
             </div>
           </Router>
