@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -22,6 +23,14 @@ import CustomerService from './pages/CustomerService';
 import AppDownloadBanner from './components/AppDownloadBanner';
 import CustomerServiceButton from './components/CustomerServiceButton';
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 function GuestRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return null;
@@ -35,6 +44,7 @@ function App() {
       <CartProvider>
         <NotificationProvider>
           <Router>
+            <ScrollToTop />
             <div className="min-h-screen bg-bg text-text flex flex-col selection:bg-primary selection:text-white font-sans">
               <AppDownloadBanner />
               <Navbar />
