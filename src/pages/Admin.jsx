@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import {
   Layers,
@@ -27,6 +27,8 @@ import {
   ChevronDown,
   Headphones,
   MessageSquareText,
+  Printer,
+  Download,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { categoryService } from "../services/categoryService";
@@ -189,6 +191,8 @@ export default function Admin() {
   const [orders, setOrders] = useState([]);
   const [orderLoading, setOrderLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
+  const [printingOrder, setPrintingOrder] = useState(null);
+  const ordersPreviousIds = useRef(new Set());
 
   // Modals & forms
   const [modalType, setModalType] = useState(null); // 'createCategory' | 'editCategory' | 'createProduct' | 'editProduct' | 'createOffer' | 'editOffer' | 'createCoupon' | 'editCoupon'
@@ -344,6 +348,91 @@ export default function Admin() {
     fetchPlans,
     fetchTickets,
   ]);
+
+  // Poll orders every 15 seconds for new orders (no loading spinner)
+  useEffect(() => {
+    if (!isAdmin) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await orderService.getAllOrders({
+          status: statusFilter || undefined,
+          limit: 50,
+        });
+        const newOrders = res.data || [];
+        const newIds = new Set(newOrders.map((o) => o._id));
+
+        // Detect new orders on first poll after mount
+        if (ordersPreviousIds.current.size > 0) {
+          for (const order of newOrders) {
+            if (!ordersPreviousIds.current.has(order._id)) {
+              setPrintingOrder(order);
+              setTimeout(() => {
+                window.print();
+              }, 300);
+              break;
+            }
+          }
+        }
+
+        ordersPreviousIds.current = newIds;
+        setOrders(newOrders);
+      } catch {
+        // Silently fail — manual refresh still works
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [isAdmin, statusFilter]);
+
+  const handleManualPrint = (order) => {
+    setPrintingOrder(order);
+    setTimeout(() => {
+      window.print();
+    }, 300);
+  };
+
+  const exportOrdersCSV = () => {
+    if (orders.length === 0) return;
+    const headers = [
+      "Order ID", "Date", "Customer", "Email", "Phone",
+      "Address", "Delivery Time", "Items", "Subtotal (KD)",
+      "Discount (KD)", "Total (KD)", "Status", "Coupon", "Note",
+    ];
+    const rows = orders.map((ord) => {
+      const u = ord.userId || {};
+      const items = (ord.items || [])
+        .map((it) => `${it.quantity}x ${it.name}`)
+        .join("; ");
+      const subtotal = (ord.items || []).reduce(
+        (sum, it) => sum + it.price * it.quantity, 0,
+      );
+      return [
+        ord._id.slice(-8).toUpperCase(),
+        new Date(ord.createdAt).toLocaleString(),
+        `${u.firstName || ""} ${u.lastName || ""}`.trim(),
+        u.email || "",
+        ord.phone || "",
+        ord.address || "",
+        ord.deliveryTime || "",
+        items,
+        subtotal.toFixed(3),
+        (ord.discountAmount || 0).toFixed(3),
+        (ord.totalPrice || 0).toFixed(3),
+        ord.status || "",
+        ord.couponCode || "",
+        ord.note || "",
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rock-diet-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (authLoading) {
     return (
@@ -1619,6 +1708,14 @@ export default function Admin() {
                   ))}
                 </select>
                 <button
+                  onClick={exportOrdersCSV}
+                  disabled={orders.length === 0}
+                  className="p-2 rounded-lg bg-bg border border-border text-text-secondary hover:text-primary min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40"
+                  title="Export CSV"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
                   onClick={fetchOrders}
                    className="p-2 rounded-lg bg-bg border border-border text-text-secondary hover:text-primary min-w-[36px] min-h-[36px] flex items-center justify-center"
                 >
@@ -1677,6 +1774,13 @@ export default function Admin() {
 
                         {/* Update Status Dropdown */}
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleManualPrint(ord)}
+                            className="p-2 rounded-lg bg-bg border border-border text-text-secondary hover:text-primary hover:border-primary transition-colors"
+                            title="Print Order Ticket"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
                           <span className="text-xs font-semibold text-text-secondary">
                             Status:
                           </span>
@@ -3759,6 +3863,79 @@ export default function Admin() {
           </div>
         )}
       </div>
+
+      {/* PRINT STICKER — only visible when printing */}
+      {printingOrder && (
+        <div className="print-sticker">
+          <div className="sticker">
+            <div className="sticker-header">
+              <h2 className="sticker-brand">ROCK DIET</h2>
+              <p className="sticker-subtitle">ORDER TICKET</p>
+            </div>
+
+            <div className="sticker-order-id">
+              #{printingOrder._id?.slice(-8).toUpperCase()}
+            </div>
+
+            <div className="sticker-meta">
+              <p>{new Date(printingOrder.createdAt).toLocaleString()}</p>
+              <p className="sticker-status">{printingOrder.status?.replace(/_/g, " ").toUpperCase()}</p>
+            </div>
+
+            <div className="sticker-divider" />
+
+            <div className="sticker-section">
+              <h3 className="sticker-section-title">CUSTOMER</h3>
+              <p>{printingOrder.userId?.firstName} {printingOrder.userId?.lastName}</p>
+              <p>{printingOrder.phone}</p>
+              <p>{printingOrder.address}</p>
+              {printingOrder.deliveryTime && (
+                <p className="sticker-highlight">Delivery: {printingOrder.deliveryTime}</p>
+              )}
+            </div>
+
+            <div className="sticker-divider" />
+
+            <div className="sticker-section">
+              <h3 className="sticker-section-title">ITEMS</h3>
+              {printingOrder.items?.map((it, i) => (
+                <div key={i} className="sticker-item">
+                  <span>{it.quantity}x {it.name}</span>
+                </div>
+              ))}
+            </div>
+
+            {(printingOrder.couponCode || printingOrder.note) && (
+              <>
+                <div className="sticker-divider" />
+                <div className="sticker-section">
+                  {printingOrder.couponCode && (
+                    <p className="sticker-highlight">Coupon: {printingOrder.couponCode}</p>
+                  )}
+                  {printingOrder.note && (
+                    <p><strong>Note:</strong> {printingOrder.note}</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="sticker-divider" />
+
+            <div className="sticker-footer">
+              <span>TOTAL</span>
+              <span className="sticker-total">KD {printingOrder.totalPrice?.toFixed(3)}</span>
+            </div>
+
+            <div className="sticker-notes-area">
+              <h3 className="sticker-section-title">PREP NOTES</h3>
+              <div className="sticker-lines">
+                <div className="sticker-line" />
+                <div className="sticker-line" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
