@@ -289,6 +289,12 @@ export default function Orders() {
                           <span>{order.address}</span>
                         </p>
                         <p className="text-text-secondary">Phone: {order.phone}</p>
+                        {order.deliveryTime && (
+                          <p className="text-text-secondary flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span>{order.deliveryTime}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 

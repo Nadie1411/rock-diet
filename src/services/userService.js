@@ -6,4 +6,6 @@ export const userService = {
     api.patch(`user/admin/${userId}/subscription`, data, { auth: true }),
   updateWeeklyMeals: (userId, weeklyMeals) =>
     api.put(`user/admin/${userId}/weekly-meals`, { weeklyMeals }, { auth: true }),
+  adminCreateUser: (data) =>
+    api.post('user/admin/create-user', data, { auth: true }),
 };

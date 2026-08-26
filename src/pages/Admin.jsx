@@ -142,6 +142,26 @@ export default function Admin() {
   const [subForm, setSubForm] = useState({ package: "", goal: "", duration: "" });
   const [savingSubId, setSavingSubId] = useState(false);
 
+  // Create User modal state
+  const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    password: "",
+    age: "",
+    weight: "",
+    height: "",
+    gender: "",
+    activityLevel: "moderate",
+    goal: "",
+    package: "",
+    duration: "",
+  });
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [createUserError, setCreateUserError] = useState("");
+
   // Weekly meal planner state
   const [mealPlannerId, setMealPlannerId] = useState(null);
   const [mealPlanDraft, setMealPlanDraft] = useState({});
@@ -858,6 +878,86 @@ export default function Admin() {
       setError(err.message || "Failed to update subscription.");
     } finally {
       setSavingSubId(false);
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreateUserError("");
+    const f = createUserForm;
+    if (!f.firstName.trim() || !f.lastName.trim()) {
+      setCreateUserError("First and last name are required.");
+      return;
+    }
+    if (!f.email.trim()) {
+      setCreateUserError("Email is required.");
+      return;
+    }
+    if (!f.phoneNumber.trim()) {
+      setCreateUserError("Phone number is required.");
+      return;
+    }
+    if (!f.password) {
+      setCreateUserError("Password is required.");
+      return;
+    }
+    if (f.password.length < 8) {
+      setCreateUserError("Password must be at least 8 characters.");
+      return;
+    }
+    if (!f.age || Number(f.age) < 1) {
+      setCreateUserError("Age is required.");
+      return;
+    }
+    if (!f.weight || Number(f.weight) < 1) {
+      setCreateUserError("Weight is required.");
+      return;
+    }
+    if (!f.height || Number(f.height) < 50) {
+      setCreateUserError("Height is required (min 50).");
+      return;
+    }
+    if (!f.gender) {
+      setCreateUserError("Gender is required.");
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      await userService.adminCreateUser({
+        firstName: f.firstName.trim(),
+        lastName: f.lastName.trim(),
+        email: f.email.trim(),
+        phoneNumber: f.phoneNumber.trim(),
+        password: f.password,
+        age: Number(f.age),
+        weight: Number(f.weight),
+        height: Number(f.height),
+        gender: f.gender,
+        activityLevel: f.activityLevel || "moderate",
+        ...(f.goal && { goal: f.goal }),
+        ...(f.package.trim() && f.duration && {
+          package: f.package.trim(),
+          duration: f.duration,
+        }),
+      });
+      setSuccess("User created successfully!");
+      setTimeout(() => setSuccess(""), 3000);
+      setCreateUserOpen(false);
+      setCreateUserForm({
+        firstName: "", lastName: "", email: "", phoneNumber: "",
+        password: "", age: "", weight: "", height: "",
+        gender: "", activityLevel: "moderate", goal: "", package: "", duration: "",
+      });
+      fetchSubscribers();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setCreateUserError(err.message || "Failed to create user.");
+      } else {
+        setCreateUserError("Network error. Please try again.");
+      }
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -1632,6 +1732,12 @@ export default function Admin() {
                             <strong className="text-text">Address:</strong>{" "}
                             {ord.address}
                           </p>
+                          {ord.deliveryTime && (
+                            <p>
+                              <strong className="text-text">Delivery Time:</strong>{" "}
+                              {ord.deliveryTime}
+                            </p>
+                          )}
                           {ord.note && (
                             <p>
                               <strong className="text-text">Note:</strong>{" "}
@@ -2335,6 +2441,13 @@ export default function Admin() {
                   className="w-full sm:w-64 px-3 py-2 rounded-lg bg-surface border border-border text-xs font-semibold text-text placeholder:text-text-secondary focus:outline-none focus:border-primary"
                 />
                 <button
+                  onClick={() => setCreateUserOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-semibold transition-colors shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Create User</span>
+                </button>
+                <button
                   onClick={fetchSubscribers}
                   disabled={subsLoading}
                   className="p-2 rounded-lg bg-surface border border-border text-text-secondary hover:text-primary hover:border-primary transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center shrink-0"
@@ -2391,12 +2504,16 @@ export default function Admin() {
                           className={`px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap shrink-0 ${
                             sub.subscriptionActive
                               ? "bg-success/10 text-success"
-                              : "bg-error/10 text-error"
+                              : sub.package
+                              ? "bg-error/10 text-error"
+                              : "bg-bg text-text-secondary"
                           }`}
                         >
                           {sub.subscriptionActive
                             ? `${sub.daysRemaining !== null && sub.daysRemaining >= 0 ? sub.daysRemaining : 0}d left`
-                            : "Expired"}
+                            : sub.package
+                            ? "Expired"
+                            : "No Plan"}
                         </span>
                       </div>
 
@@ -3399,6 +3516,241 @@ export default function Admin() {
                       </>
                     ) : (
                       "Save Changes"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* CREATE USER MODAL */}
+        {createUserOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => { setCreateUserOpen(false); setCreateUserError(""); }}
+            />
+            <div className="relative bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-5 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-primary" />
+                  <h3 className="text-base font-bold text-text">Create New User</h3>
+                </div>
+                <button
+                  onClick={() => { setCreateUserOpen(false); setCreateUserError(""); }}
+                  className="p-1.5 rounded-lg text-text-secondary hover:text-error hover:bg-error/10 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="p-5 space-y-4">
+                {createUserError && (
+                  <div className="flex items-start gap-2 bg-error/10 text-error text-xs font-semibold px-4 py-3 rounded-lg border border-error/20">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{createUserError}</span>
+                  </div>
+                )}
+
+                {/* Name */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">First Name *</label>
+                    <input
+                      type="text"
+                      value={createUserForm.firstName}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, firstName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Last Name *</label>
+                    <input
+                      type="text"
+                      value={createUserForm.lastName}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, lastName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-semibold text-text mb-1">Email *</label>
+                  <input
+                    type="email"
+                    value={createUserForm.email}
+                    onChange={(e) => setCreateUserForm((p) => ({ ...p, email: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-xs font-semibold text-text mb-1">Phone Number *</label>
+                  <input
+                    type="tel"
+                    value={createUserForm.phoneNumber}
+                    onChange={(e) => setCreateUserForm((p) => ({ ...p, phoneNumber: e.target.value }))}
+                    placeholder="+965 5512 3456"
+                    className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-semibold text-text mb-1">Password *</label>
+                  <input
+                    type="password"
+                    value={createUserForm.password}
+                    onChange={(e) => setCreateUserForm((p) => ({ ...p, password: e.target.value }))}
+                    placeholder="Min 8 chars, upper+lower+digit+special"
+                    className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                    required
+                  />
+                </div>
+
+                {/* Body stats */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Age *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      value={createUserForm.age}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, age: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Weight (kg) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={createUserForm.weight}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, weight: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Height (cm) *</label>
+                    <input
+                      type="number"
+                      min="50"
+                      value={createUserForm.height}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, height: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Gender & Activity */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Gender *</label>
+                    <select
+                      value={createUserForm.gender}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, gender: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                      required
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Activity Level</label>
+                    <select
+                      value={createUserForm.activityLevel}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, activityLevel: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                    >
+                      <option value="light">Light</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="active">Active</option>
+                      <option value="very_active">Very Active</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Goal */}
+                <div>
+                  <label className="block text-xs font-semibold text-text mb-1">Goal</label>
+                  <select
+                    value={createUserForm.goal}
+                    onChange={(e) => setCreateUserForm((p) => ({ ...p, goal: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary"
+                  >
+                    <option value="">No goal set</option>
+                    <option value="weight_loss">Weight Loss</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="bulking">Bulking</option>
+                  </select>
+                </div>
+
+                {/* Subscription */}
+                <div className="bg-bg rounded-lg p-3 space-y-3 border border-border">
+                  <p className="text-[11px] font-bold text-primary uppercase tracking-wider">Subscription (optional)</p>
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Package Name</label>
+                    <input
+                      type="text"
+                      value={createUserForm.package}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, package: e.target.value }))}
+                      placeholder="e.g. Premium, Basic"
+                      className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text mb-1">Duration</label>
+                    <select
+                      value={createUserForm.duration}
+                      onChange={(e) => setCreateUserForm((p) => ({ ...p, duration: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text text-xs focus:outline-none focus:border-primary"
+                    >
+                      <option value="">Select duration</option>
+                      <option value="1 month">1 Month</option>
+                      <option value="3 months">3 Months</option>
+                      <option value="6 months">6 Months</option>
+                      <option value="12 months">12 Months</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setCreateUserOpen(false); setCreateUserError(""); }}
+                    className="flex-1 py-2.5 rounded-xl border border-border text-text text-xs font-semibold hover:bg-bg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingUser}
+                    className="flex-[2] py-2.5 rounded-xl bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-60"
+                  >
+                    {creatingUser ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        Create User
+                      </>
                     )}
                   </button>
                 </div>

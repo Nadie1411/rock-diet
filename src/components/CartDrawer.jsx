@@ -15,6 +15,7 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  Clock,
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { orderService } from "../services/orderService";
@@ -41,6 +42,8 @@ export default function CartDrawer() {
   const [phone, setPhone] = useState("");
   const [phoneCountry, setPhoneCountry] = useState("kw");
   const [note, setNote] = useState("");
+  const [deliveryTime, setDeliveryTime] = useState("");
+  const [specificTime, setSpecificTime] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [placedOrder, setPlacedOrder] = useState(null);
@@ -96,6 +99,8 @@ export default function CartDrawer() {
       setPhone("");
       setPhoneCountry("kw");
       setNote("");
+      setDeliveryTime("");
+      setSpecificTime("");
       setLoading(false);
       setError("");
       setPlacedOrder(null);
@@ -182,6 +187,16 @@ export default function CartDrawer() {
       setError("Phone number must be at least 6 digits.");
       return;
     }
+    if (!deliveryTime) {
+      setError("Please select a delivery time.");
+      return;
+    }
+    if (deliveryTime === "specific") {
+      if (!specificTime.trim()) {
+        setError("Please enter your preferred delivery time.");
+        return;
+      }
+    }
 
     setLoading(true);
     try {
@@ -189,6 +204,7 @@ export default function CartDrawer() {
         address: trimmedAddress,
         phone: fullPhone,
         note: note.trim() || undefined,
+        deliveryTime: deliveryTime === "specific" ? specificTime.trim() : deliveryTime,
         ...(appliedCoupon?.code && { couponCode: appliedCoupon.code }),
       });
       const data = res.data || {};
@@ -656,6 +672,42 @@ export default function CartDrawer() {
                       />
                     </div>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text mb-1">
+                    Delivery Time *
+                  </label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+                    <select
+                      value={deliveryTime}
+                      onChange={(e) => {
+                        setDeliveryTime(e.target.value);
+                        if (e.target.value !== "specific") setSpecificTime("");
+                      }}
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
+                      required
+                    >
+                      <option value="">Select delivery time</option>
+                      <option value="Morning (7:00 AM – 10:00 AM)">Morning (7:00 AM – 10:00 AM)</option>
+                      <option value="Afternoon (12:00 PM – 3:00 PM)">Afternoon (12:00 PM – 3:00 PM)</option>
+                      <option value="Evening (6:00 PM – 9:00 PM)">Evening (6:00 PM – 9:00 PM)</option>
+                      <option value="specific">Specific Time...</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+                  </div>
+                  {deliveryTime === "specific" && (
+                    <div className="mt-2 relative">
+                      <input
+                        type="time"
+                        value={specificTime}
+                        onChange={(e) => setSpecificTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
