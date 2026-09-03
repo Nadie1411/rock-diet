@@ -18,4 +18,6 @@ export const orderService = {
     api.patch(`order/${orderId}/status`, { status }, { auth: true }),
   cancelOrder: (orderId) => api.delete(`order/${orderId}`, { auth: true }),
   reorderOrder: (orderId) => api.post(`order/${orderId}/reorder`, {}, { auth: true }),
+  verifyPayment: (paymentToken) =>
+    api.get(`order/verify-payment?paymentToken=${encodeURIComponent(paymentToken)}`, { auth: true }),
 };

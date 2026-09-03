@@ -211,7 +211,7 @@ export default function CartDrawer() {
       const order = data.order || {};
       setPlacedOrder(order);
       await clearCart();
-      // If backend returns a payment URL (Stripe Checkout), redirect to it
+      // If backend returns a payment URL (Ecom Checkout), redirect to it
       if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
         return;
