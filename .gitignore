@@ -11,7 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Every env file stays out of git; .env.example is the only one committed.
 .env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*
@@ -24,5 +28,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude Code session tooling
+# Claude Code session tooling and its project notes
 .claude/
+AGENTS.md
