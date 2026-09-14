@@ -18,6 +18,10 @@ export const orderService = {
     api.patch(`order/${orderId}/status`, { status }, { auth: true }),
   cancelOrder: (orderId) => api.delete(`order/${orderId}`, { auth: true }),
   reorderOrder: (orderId) => api.post(`order/${orderId}/reorder`, {}, { auth: true }),
-  verifyPayment: (paymentToken) =>
-    api.get(`order/verify-payment?paymentToken=${encodeURIComponent(paymentToken)}`, { auth: true }),
+  // This backend reconciles against the order itself rather than a payment
+  // token: the gateway returns to a fixed success URL configured in the admin
+  // panel, carrying nothing that identifies the order, so the id is stashed
+  // before the redirect and read back here.
+  reconcilePayment: (orderId) =>
+    api.post(`order/${orderId}/reconcile`, {}, { auth: true }),
 };

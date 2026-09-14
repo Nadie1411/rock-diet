@@ -4,13 +4,27 @@ import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2, Calenda
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../services/api';
 import rockDietLogo from '../assets/rock-diet-logo.png';
+import { useT } from '../i18n/useT';
+import { draftProfile, hasDraft } from '../utils/subscribeDraft';
 
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+const PASSWORD_REGEX = // Length only. The server asks for eight characters and nothing more, and a
+// stricter rule here would reject passwords it would happily accept.
+/^.{8,}$/;
 
 export default function Signup() {
+  const { t, L } = useT();
   const navigate = useNavigate();
   const { signup } = useAuth();
-  const [form, setForm] = useState({
+  /*
+   * Pre-filled from the subscription they were part-way through buying.
+   *
+   * Signing up is asked for at the pay button, and by then they have already
+   * told the wizard their age, weight, height, gender and goal — the same
+   * five fields this form asks for. Asking again in the same sitting reads as
+   * the site not having listened, and it is the last thing standing between
+   * them and a payment.
+   */
+  const [form, setForm] = useState(() => ({
     userName: '',
     email: '',
     phoneNumber: '',
@@ -22,7 +36,8 @@ export default function Signup() {
     gender: '',
     goal: '',
     activityLevel: 'moderate',
-  });
+    ...(draftProfile() || {}),
+  }));
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
@@ -31,35 +46,14 @@ export default function Signup() {
   const [phoneCountry, setPhoneCountry] = useState('kw');
   const countryRef = useRef(null);
 
+  // Kuwait only.
+  //
+  // The mobile app has no country picker at all — it sends '+965' + the
+  // number — and the API validates against /^\+965[569]\d{7}$/. Offering
+  // other countries put choices on screen that could only ever be rejected,
+  // which is how a signup could fail with a perfectly valid Egyptian number.
   const COUNTRIES = [
     { code: 'kw', flag: '🇰🇼', dial: '+965', name: 'Kuwait' },
-    { code: 'sa', flag: '🇸🇦', dial: '+966', name: 'Saudi Arabia' },
-    { code: 'ae', flag: '🇦🇪', dial: '+971', name: 'UAE' },
-    { code: 'qa', flag: '🇶🇦', dial: '+974', name: 'Qatar' },
-    { code: 'bh', flag: '🇧🇭', dial: '+973', name: 'Bahrain' },
-    { code: 'om', flag: '🇴🇲', dial: '+968', name: 'Oman' },
-    { code: 'eg', flag: '🇪🇬', dial: '+20', name: 'Egypt' },
-    { code: 'jo', flag: '🇯🇴', dial: '+962', name: 'Jordan' },
-    { code: 'lb', flag: '🇱🇧', dial: '+961', name: 'Lebanon' },
-    { code: 'iq', flag: '🇮🇶', dial: '+964', name: 'Iraq' },
-    { code: 'sy', flag: '🇸🇾', dial: '+963', name: 'Syria' },
-    { code: 'ps', flag: '🇵🇸', dial: '+970', name: 'Palestine' },
-    { code: 'ye', flag: '🇾🇪', dial: '+967', name: 'Yemen' },
-    { code: 'ly', flag: '🇱🇾', dial: '+218', name: 'Libya' },
-    { code: 'tn', flag: '🇹🇳', dial: '+216', name: 'Tunisia' },
-    { code: 'dz', flag: '🇩🇿', dial: '+213', name: 'Algeria' },
-    { code: 'ma', flag: '🇲🇦', dial: '+212', name: 'Morocco' },
-    { code: 'sd', flag: '🇸🇩', dial: '+249', name: 'Sudan' },
-    { code: 'so', flag: '🇸🇴', dial: '+252', name: 'Somalia' },
-    { code: 'dj', flag: '🇩🇯', dial: '+253', name: 'Djibouti' },
-    { code: 'km', flag: '🇰🇲', dial: '+269', name: 'Comoros' },
-    { code: 'mr', flag: '🇲🇷', dial: '+222', name: 'Mauritania' },
-    { code: 'tr', flag: '🇹🇷', dial: '+90', name: 'Turkey' },
-    { code: 'in', flag: '🇮🇳', dial: '+91', name: 'India' },
-    { code: 'pk', flag: '🇵🇰', dial: '+92', name: 'Pakistan' },
-    { code: 'ph', flag: '🇵🇭', dial: '+63', name: 'Philippines' },
-    { code: 'us', flag: '🇺🇸', dial: '+1', name: 'USA' },
-    { code: 'gb', flag: '🇬🇧', dial: '+44', name: 'UK' },
   ];
 
   const selectedCountry = COUNTRIES.find((c) => c.code === phoneCountry) || COUNTRIES[0];
@@ -121,7 +115,7 @@ export default function Signup() {
       const data = {
         userName: form.userName.trim(),
         email: form.email.trim(),
-        phoneNumber: `${selectedCountry.dial} ${form.phoneNumber.trim()}`,
+        phoneNumber: `${selectedCountry.dial}${form.phoneNumber.trim()}`,
         password: form.password,
         confirmPassword: form.confirmPassword,
         age: Number(form.age),
@@ -135,7 +129,12 @@ export default function Signup() {
       };
       await signup(data);
       // Navigate to OTP confirmation
-      navigate('/confirm-email', { state: { email: data.email } });
+      // Carries where they came from, so the code screen can hand them back
+      // to the purchase instead of leaving them on a sign-in page with a
+      // half-built subscription they have to find again.
+      navigate('/confirm-email', {
+        state: { email: data.email, from: hasDraft() ? '/subscribe' : null },
+      });
     } catch (err) {
       if (err instanceof ApiError) {
         // Handle validation errors from backend
@@ -145,7 +144,7 @@ export default function Signup() {
           setError(err.message || 'Signup failed. Please try again.');
         }
       } else {
-        setError('Network error. Please check your connection and try again.');
+        setError(t('networkErrorLong'));
       }
     } finally {
       setLoading(false);
@@ -160,19 +159,15 @@ export default function Signup() {
           onClick={() => navigate(-1)}
           className="inline-flex items-center gap-2 text-sm font-semibold text-text-secondary hover:text-primary transition-colors mb-6"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+          <ArrowLeft className="w-4 h-4" />{t('commonBack')}</button>
 
         {/* Header */}
         <div className="text-center mb-8">
-          <img src={rockDietLogo} alt="Rock Diet" className="h-12 w-auto object-contain mx-auto mb-4" />
+          <img src={rockDietLogo} alt={t('appName')} className="h-12 w-auto object-contain mx-auto mb-4" />
           <h1 className="text-3xl font-extrabold tracking-tight text-text">
-            Create <span className="text-primary">Account</span>
+            {t('headingSignup')}
           </h1>
-          <p className="text-text-secondary text-sm mt-1">
-            Join Rock Diet and start your healthy journey.
-          </p>
+          <p className="text-text-secondary text-sm mt-1">{t('signupSubtitle')}</p>
         </div>
 
         {/* Card */}
@@ -187,9 +182,7 @@ export default function Signup() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Full Name */}
             <div>
-              <label htmlFor="userName" className="block text-xs font-semibold text-text mb-1.5">
-                Full Name
-              </label>
+              <label htmlFor="userName" className="block text-xs font-semibold text-text mb-1.5">{t('profileName')}</label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
@@ -207,9 +200,7 @@ export default function Signup() {
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-text mb-1.5">
-                Email Address
-              </label>
+              <label htmlFor="email" className="block text-xs font-semibold text-text mb-1.5">{t('emailAddress')}</label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
@@ -218,7 +209,7 @@ export default function Signup() {
                   type="email"
                   value={form.email}
                   onChange={handleChange}
-                  placeholder="you@example.com"
+                  placeholder={t('authEmailHint')}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   required
                 />
@@ -227,9 +218,7 @@ export default function Signup() {
 
             {/* Phone */}
             <div>
-              <label htmlFor="phoneNumber" className="block text-xs font-semibold text-text mb-1.5">
-                Phone Number
-              </label>
+              <label htmlFor="phoneNumber" className="block text-xs font-semibold text-text mb-1.5">{t('authPhoneLabel')}</label>
               <div className="flex gap-2">
                 <div className="relative shrink-0" ref={countryRef}>
                   <button
@@ -283,9 +272,7 @@ export default function Signup() {
             {/* Health & Diet Metrics Grid */}
             <div className="grid grid-cols-2 gap-3 pt-1">
               <div>
-                <label htmlFor="age" className="block text-xs font-semibold text-text mb-1">
-                  Age *
-                </label>
+                <label htmlFor="age" className="block text-xs font-semibold text-text mb-1">{t('ageRequired')}</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                   <input
@@ -304,9 +291,7 @@ export default function Signup() {
               </div>
 
               <div>
-                <label htmlFor="gender" className="block text-xs font-semibold text-text mb-1">
-                  Gender *
-                </label>
+                <label htmlFor="gender" className="block text-xs font-semibold text-text mb-1">{t('genderRequired')}</label>
                 <div className="relative">
                   <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                   <select
@@ -317,17 +302,15 @@ export default function Signup() {
                     className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary font-medium"
                     required
                   >
-                    <option value="" disabled>Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
+                    <option value="" disabled>{t('selectGender')}</option>
+                    <option value="male">{t('genderMale')}</option>
+                    <option value="female">{t('genderFemale')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="weight" className="block text-xs font-semibold text-text mb-1">
-                  Weight (kg) *
-                </label>
+                <label htmlFor="weight" className="block text-xs font-semibold text-text mb-1">{t('weightRequired')}</label>
                 <div className="relative">
                   <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                   <input
@@ -346,9 +329,7 @@ export default function Signup() {
               </div>
 
               <div>
-                <label htmlFor="height" className="block text-xs font-semibold text-text mb-1">
-                  Height (cm) *
-                </label>
+                <label htmlFor="height" className="block text-xs font-semibold text-text mb-1">{t('heightRequired')}</label>
                 <div className="relative">
                   <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                   <input
@@ -368,9 +349,7 @@ export default function Signup() {
             </div>
 
             <div>
-              <label htmlFor="activityLevel" className="block text-xs font-semibold text-text mb-1">
-                Activity Level
-              </label>
+              <label htmlFor="activityLevel" className="block text-xs font-semibold text-text mb-1">{t('activityTitle')}</label>
               <select
                 id="activityLevel"
                 name="activityLevel"
@@ -378,16 +357,14 @@ export default function Signup() {
                 onChange={handleChange}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary font-medium"
               >
-                <option value="light">Light (1-3 days/week)</option>
-                <option value="moderate">Moderate (3-5 days/week)</option>
-                <option value="active">Active (6-7 days/week)</option>
+                <option value="light">{t('activityLight')}</option>
+                <option value="moderate">{t('activityModerate')}</option>
+                <option value="active">{t('activityActive')}</option>
               </select>
             </div>
 
             <div>
-              <label htmlFor="goal" className="block text-xs font-semibold text-text mb-1">
-                Fitness Goal *
-              </label>
+              <label htmlFor="goal" className="block text-xs font-semibold text-text mb-1">{t('fitnessGoalRequired')}</label>
               <div className="relative">
                 <Target className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <select
@@ -398,19 +375,17 @@ export default function Signup() {
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary font-medium"
                   required
                 >
-                  <option value="" disabled>Select Fitness Goal</option>
-                  <option value="weight_loss">Weight Loss (Deficit -500 kcal)</option>
-                  <option value="maintenance">Maintenance (Balanced)</option>
-                  <option value="bulking">Bulking (Surplus +300 kcal)</option>
+                  <option value="" disabled>{t('selectGoal')}</option>
+                  <option value="weight_loss">{t('goalWeightLossLong')}</option>
+                  <option value="maintenance">{t('goalMaintenanceLong')}</option>
+                  <option value="bulking">{t('goalBulkingLong')}</option>
                 </select>
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-text mb-1.5">
-                Password
-              </label>
+              <label htmlFor="password" className="block text-xs font-semibold text-text mb-1.5">{t('authPassword')}</label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
@@ -419,7 +394,7 @@ export default function Signup() {
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={handleChange}
-                  placeholder="At least 8 characters"
+                  placeholder={t('authPasswordHint')}
                   className="w-full pl-10 pr-11 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   required
                 />
@@ -432,16 +407,12 @@ export default function Signup() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <p className="text-[10px] text-text-secondary mt-1.5">
-                At least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special (@$!%*?&)
-              </p>
+              <p className="text-[10px] text-text-secondary mt-1.5">{t('passwordRule')}</p>
             </div>
 
             {/* Confirm Password */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-xs font-semibold text-text mb-1.5">
-                Confirm Password
-              </label>
+              <label htmlFor="confirmPassword" className="block text-xs font-semibold text-text mb-1.5">{t('authConfirmPassword')}</label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
@@ -450,7 +421,7 @@ export default function Signup() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={form.confirmPassword}
                   onChange={handleChange}
-                  placeholder="Confirm your password"
+                  placeholder={t('confirmYourPassword')}
                   className="w-full pl-10 pr-11 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   required
                 />
@@ -473,9 +444,7 @@ export default function Signup() {
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating account...
-                </>
+                  <Loader2 className="w-4 h-4 animate-spin" />{t('creatingAccount')}</>
               ) : (
                 'Create Account'
               )}
@@ -492,9 +461,7 @@ export default function Signup() {
           {/* Login link */}
           <p className="text-center text-sm text-text-secondary">
             Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-primary hover:text-primary-light transition-colors">
-              Login
-            </Link>
+            <Link to="/login" className="font-semibold text-primary hover:text-primary-light transition-colors">{t('login')}</Link>
           </p>
         </div>
       </div>

@@ -20,11 +20,19 @@ export function AuthProvider({ children }) {
         const res = await authService.getProfile();
         setUser(res.data);
         setIsAuthenticated(true);
-      } catch {
+      } catch (err) {
         setUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        // Only a genuine rejection of the credential should destroy it.
+        // Catching everything meant a rate-limit (429), a 500, or a dropped
+        // connection signed the customer out and threw away a refresh token
+        // that was still valid for a week — they came back to a login screen
+        // with no idea why. Anything else leaves the tokens alone, so a
+        // reload picks the session back up.
+        if (err?.status === 401 || err?.status === 403) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+        }
       } finally {
         setLoading(false);
       }
@@ -86,6 +94,22 @@ export function AuthProvider({ children }) {
     return res;
   }, []);
 
+  /**
+   * Re-read the account from the server.
+   *
+   * Some things change the user record without this app having sent the new
+   * values — pausing a subscription, a payment clearing and applying a
+   * package. Those screens call this so what is on screen matches what the
+   * kitchen now believes, rather than a copy taken at sign-in.
+   */
+  const refreshProfile = useCallback(async () => {
+    const res = await authService.getProfile();
+    if (res.data) {
+      setUser(res.data);
+    }
+    return res;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await authService.logout();
@@ -110,6 +134,7 @@ export function AuthProvider({ children }) {
     confirmEmail,
     resendOtp,
     updateProfile,
+    refreshProfile,
     logout,
   };
 

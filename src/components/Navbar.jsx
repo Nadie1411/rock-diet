@@ -15,13 +15,19 @@ import {
   CheckCircle,
   Package,
   Headphones,
+  Tag,
+  CalendarSync,
 } from "lucide-react";
 import rockDietLogo from "../assets/rock-diet-logo.png";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useNotification } from "../context/NotificationContext";
+import { useT } from "../i18n/useT";
+import { useAuthGate } from '../context/AuthGate';
 
 export default function Navbar() {
+  const { t, L, isArabic, toggleLanguage } = useT();
+  const { requireAuth } = useAuthGate();
   const [isOpen, setIsOpen] = useState(false);
   const { isAuthenticated, user, isAdmin, logout } = useAuth();
   const { cartItemCount, openCart } = useCart();
@@ -66,22 +72,43 @@ export default function Navbar() {
     navigate("/");
   };
 
+  // The admin panel is a separate Next.js app now, so the old
+  // "/admin?tab=..." deep links point at a route this bundle does not have.
+  // A customer's notification belongs on their own feed.
   const notificationTarget = (notif) =>
-    notif.type === "support" ? "/admin?tab=support" : "/admin?tab=orders";
+    notif.orderId ? `/orders/${notif.orderId}` : "/notifications";
 
   const handleNotificationBellClick = useCallback(() => {
     toggleDropdown();
   }, [toggleDropdown]);
 
-  const navItems = [
-    { name: "Home", path: "/", icon: HomeIcon },
-    { name: "Menu", path: "/menu", icon: BookOpen },
-    { name: "Orders", path: "/orders", icon: ShoppingBag },
-  ];
+  // The feed's shape is the API's to change, and this component is mounted on
+  // every page — a non-array arriving here once took the whole app white with
+  // "notifications.slice is not a function". Never trust it to be a list.
+  const notificationList = Array.isArray(notifications) ? notifications : [];
 
-  if (isAdmin) {
-    navItems.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
-  }
+  // The app's shell is Home · Menu · My Plan · Orders · Profile, and a
+  // signed-in customer gets exactly that. A guest has no plan, no orders and
+  // no profile to show — the app puts them through onboarding instead, which
+  // the website answers with the browse-oriented set.
+  const navItems = isAuthenticated
+    ? [
+        { name: t("navHome"), path: "/", icon: HomeIcon },
+        { name: t("navMenu"), path: "/menu", icon: BookOpen },
+        { name: t("navPlan"), path: "/plan", icon: CalendarSync },
+        { name: t("navOrders"), path: "/orders", icon: ShoppingBag },
+        { name: t("navProfile"), path: "/profile", icon: User },
+      ]
+    : [
+        { name: t("navHome"), path: "/", icon: HomeIcon },
+        { name: t("navMenu"), path: "/menu", icon: BookOpen },
+        { name: t("packagesTitle"), path: "/packages", icon: Package },
+        { name: t("offersTitle"), path: "/offers", icon: Tag },
+      ];
+
+  // No admin item here. Administration lives in the Next.js panel served at
+  // /admin by the web server, outside this app — a NavLink to it would be a
+  // client-side route into a page this bundle no longer contains.
 
   return (
     <header className="sticky top-0 z-50 bg-bg border-b border-border shadow-sm">
@@ -95,7 +122,7 @@ export default function Navbar() {
           >
             <img
               src={rockDietLogo}
-              alt="Rock Diet"
+              alt={t('appName')}
               className="h-[52px] sm:h-14 w-auto object-contain group-hover:scale-105 transition-transform duration-200"
             />
           </Link>
@@ -128,11 +155,22 @@ export default function Navbar() {
 
           {/* Right Action Buttons */}
           <div className="flex items-center gap-2">
+            {/* Language switch. One button rather than a dropdown: there
+                are two languages, so the useful thing is the other one. */}
+            <button
+              onClick={toggleLanguage}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-text-secondary hover:text-primary hover:bg-surface transition-colors"
+              aria-label={isArabic ? "Switch to English" : "التبديل إلى العربية"}
+              lang={isArabic ? "en" : "ar"}
+            >
+              {isArabic ? "EN" : "ع"}
+            </button>
+
             {/* Cart Icon Button */}
             <button
               onClick={openCart}
               className="relative p-2 rounded-lg text-text-secondary hover:text-primary hover:bg-surface transition-colors"
-              aria-label="View Cart"
+              aria-label={t('viewCart')}
             >
               <ShoppingCart className="w-5 h-5 hidden md:block" />
               <ShoppingCart className="w-6 h-6 md:hidden" />
@@ -149,7 +187,7 @@ export default function Navbar() {
                 <button
                   onClick={handleNotificationBellClick}
                   className="relative p-2 rounded-lg text-text-secondary hover:text-primary hover:bg-surface transition-colors"
-                  aria-label="Notifications"
+                  aria-label={t('profileNotifications')}
                   data-notification-bell
                 >
                   <Bell className="w-5 h-5 hidden md:block" />
@@ -169,31 +207,25 @@ export default function Navbar() {
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg">
-                    <h3 className="text-sm font-bold text-text">
-                      Notifications
-                    </h3>
+                    <h3 className="text-sm font-bold text-text">{t('profileNotifications')}</h3>
                     {unhandledCount > 0 && (
                       <button
                         onClick={markAllAsHandled}
                         className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary-light transition-colors"
                       >
-                        <CheckCheck className="w-3.5 h-3.5" />
-                        Handle all
-                      </button>
+                        <CheckCheck className="w-3.5 h-3.5" />{t('handleAll')}</button>
                     )}
                   </div>
 
                   {/* Notification List */}
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.length === 0 ? (
+                    {notificationList.length === 0 ? (
                       <div className="py-8 text-center text-text-secondary">
                         <Bell className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        <p className="text-xs font-semibold">
-                          No notifications yet
-                        </p>
+                        <p className="text-xs font-semibold">{t('noNotifications')}</p>
                       </div>
                     ) : (
-                      notifications.slice(0, 10).map((notif) => (
+                      notificationList.slice(0, 10).map((notif) => (
                         <div
                           key={notif._id}
                           className={`w-full text-left px-4 py-3 border-b border-border/50 transition-colors ${
@@ -233,7 +265,7 @@ export default function Navbar() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <p className={`text-xs font-bold text-text truncate ${notif.handled ? "line-through decoration-success/50" : ""}`}>
-                                    {notif.title}
+                                    {L(notif.title)}
                                   </p>
                                   {!notif.handled && !notif.read && (
                                     <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
@@ -262,9 +294,7 @@ export default function Navbar() {
                                 }}
                                 className="flex items-center gap-1 text-[10px] font-semibold text-success hover:text-success/80 bg-success/10 hover:bg-success/20 px-2 py-1 rounded-md transition-colors"
                               >
-                                <CheckCircle className="w-3 h-3" />
-                                Mark as handled
-                              </button>
+                                <CheckCircle className="w-3 h-3" />{t('markHandled')}</button>
                             </div>
                           )}
                         </div>
@@ -273,7 +303,7 @@ export default function Navbar() {
                   </div>
 
                   {/* Footer */}
-                  {notifications.length > 0 && (
+                  {notificationList.length > 0 && (
                     <div className="px-4 py-2.5 border-t border-border bg-bg text-center">
                       <button
                           onClick={() => {
@@ -285,9 +315,7 @@ export default function Navbar() {
                             );
                           }}
                         className="text-xs font-bold text-primary hover:text-primary-light transition-colors"
-                      >
-                        View all notifications
-                      </button>
+                      >{t('viewAllNotifications')}</button>
                     </div>
                   )}
                 </div>
@@ -312,23 +340,35 @@ export default function Navbar() {
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-text-secondary hover:text-error hover:bg-error/10 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span>Logout</span>
+                    <span>{t('logout')}</span>
                   </button>
                 </>
               ) : (
-                <Link
-                  to="/login"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-text-secondary hover:text-primary hover:bg-surface transition-colors"
-                >
-                  <User className="w-4 h-4" />
-                  <span>Login</span>
-                </Link>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => requireAuth(null)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-text-secondary hover:text-primary hover:bg-surface transition-colors"
+                  >
+                    <User className="w-4 h-4" />
+                    <span>{t('login')}</span>
+                  </button>
+                  {/* Creating an account was a small grey link inside a sheet
+                      you had to trigger first — invisible to anyone who had
+                      not already tried to do something. */}
+                  <Link
+                    to="/signup"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-bold hover:bg-primary-light transition-colors shadow-sm hover:shadow-md"
+                  >
+                    <span>{t('signUp')}</span>
+                  </Link>
+                </>
               )}
               <Link
                 to="/menu"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-on-primary text-sm font-semibold hover:bg-primary-light transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <span>Order Now</span>
+                <span>{t('orderNow')}</span>
               </Link>
             </div>
 
@@ -337,7 +377,7 @@ export default function Navbar() {
               onClick={toggleMenu}
               type="button"
               className="md:hidden p-2 rounded-lg text-text-secondary hover:text-primary hover:bg-surface focus:outline-none transition-colors"
-              aria-label="Toggle navigation menu"
+              aria-label={t('toggleNav')}
             >
               {isOpen ? (
                 <X className="w-6 h-6" />
@@ -384,32 +424,44 @@ export default function Navbar() {
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-bg text-text font-semibold border border-border shadow-sm"
                 >
                   <User className="w-4 h-4" />
-                  <span>My Profile</span>
+                  <span>{t('myProfile')}</span>
                 </Link>
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-error/10 text-error font-semibold border border-error/20 shadow-sm"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Logout</span>
+                  <span>{t('logout')}</span>
                 </button>
               </>
             ) : (
-              <Link
-                to="/login"
-                onClick={closeMenu}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-bg text-text font-semibold border border-border shadow-sm"
-              >
-                <User className="w-4 h-4" />
-                <span>Login</span>
-              </Link>
+              <>
+                <Link
+                  to="/signup"
+                  onClick={closeMenu}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-primary text-on-primary font-bold shadow-sm"
+                >
+                  <span>{t('signUp')}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeMenu();
+                    requireAuth(null);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-bg text-text font-semibold border border-border shadow-sm"
+                >
+                  <User className="w-4 h-4" />
+                  <span>{t('login')}</span>
+                </button>
+              </>
             )}
             <Link
               to="/menu"
               onClick={closeMenu}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-accent text-on-primary font-semibold shadow-sm"
             >
-              <span>Order Now</span>
+              <span>{t('orderNow')}</span>
             </Link>
           </div>
         </div>

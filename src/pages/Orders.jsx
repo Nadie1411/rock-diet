@@ -5,6 +5,8 @@ import { orderService } from '../services/orderService';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { ApiError } from '../services/api';
+import { useT } from '../i18n/useT';
+import { useAuthGate } from '../context/AuthGate';
 
 const STATUS_STEPS = {
   pending: 1,
@@ -14,6 +16,8 @@ const STATUS_STEPS = {
 };
 
 export default function Orders() {
+  const { t, L } = useT();
+  const { requireAuth } = useAuthGate();
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { openCart } = useCart();
@@ -34,9 +38,9 @@ export default function Orders() {
       setOrders(res.data || []);
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || 'Failed to fetch your orders.');
+        setError(err.message || t('ordersLoadFailed'));
       } else {
-        setError('Network error. Please try again.');
+        setError(t('networkError'));
       }
     } finally {
       setLoading(false);
@@ -64,14 +68,12 @@ export default function Orders() {
           <div className="w-16 h-16 rounded-full bg-surface border border-border flex items-center justify-center mx-auto">
             <Package className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-extrabold text-text">Please Login to View Orders</h1>
-          <p className="text-xs text-text-secondary">Track your active healthy meal deliveries and order history.</p>
+          <h1 className="text-2xl font-extrabold text-text">{t('loginToViewOrders')}</h1>
+          <p className="text-xs text-text-secondary">{t('ordersLoginPrompt')}</p>
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => requireAuth(null, { reason: t('authGateOrders') })}
             className="w-full py-3 rounded-xl bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-md"
-          >
-            Login to Your Account
-          </button>
+          >{t('loginToAccount')}</button>
         </div>
       </div>
     );
@@ -81,16 +83,16 @@ export default function Orders() {
   const pastOrders = orders.filter((o) => ['delivered', 'cancelled'].includes(o.status));
 
   const handleCancelOrder = async (orderId) => {
-    if (!window.confirm('Are you sure you want to cancel this pending order?')) return;
+    if (!window.confirm(t('orderCancelConfirm'))) return;
     setCancelingId(orderId);
     setError('');
     try {
       await orderService.cancelOrder(orderId);
-      setSuccessMsg('Order cancelled successfully.');
+      setSuccessMsg(t('orderCancelledOk'));
       fetchOrders();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to cancel order.');
+      setError(err.message || t('orderCancelFailed'));
     } finally {
       setCancelingId(null);
     }
@@ -100,11 +102,11 @@ export default function Orders() {
     setError('');
     try {
       await orderService.reorderOrder(orderId);
-      setSuccessMsg('Previous order items added to your cart.');
+      setSuccessMsg(t('reorderAdded'));
       openCart();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to reorder.');
+      setError(err.message || t('orderReorderFailed'));
     }
   };
 
@@ -116,11 +118,9 @@ export default function Orders() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-5 border-b border-border">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-text">
-              Your <span className="text-primary">Orders</span>
+              {t('headingOrders')}
             </h1>
-            <p className="text-text-secondary text-xs sm:text-sm mt-1">
-              Track live deliveries or review past order receipts.
-            </p>
+            <p className="text-text-secondary text-xs sm:text-sm mt-1">{t('ordersSubtitle')}</p>
           </div>
 
           {/* Tabs */}
@@ -166,7 +166,7 @@ export default function Orders() {
         {loading ? (
           <div className="py-24 text-center">
             <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-3" />
-            <p className="text-xs font-semibold text-text-secondary">Loading your orders...</p>
+            <p className="text-xs font-semibold text-text-secondary">{t('loadingOrders')}</p>
           </div>
         ) : activeTab === 'active' ? (
           /* Active Orders */
@@ -174,14 +174,12 @@ export default function Orders() {
             {activeOrders.length === 0 ? (
               <div className="text-center py-16 bg-surface rounded-xl border border-border">
                 <Package className="w-10 h-10 text-text-secondary mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-semibold text-text">No active orders right now</p>
-                <p className="text-xs text-text-secondary mt-1">Ready for a healthy meal? Explore our menu!</p>
+                <p className="text-sm font-semibold text-text">{t('noActiveOrders')}</p>
+                <p className="text-xs text-text-secondary mt-1">{t('readyForMeal')}</p>
                 <Link
                   to="/menu"
                   className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-light transition-colors"
-                >
-                  Browse Menu
-                </Link>
+                >{t('cartBrowseMenu')}</Link>
               </div>
             ) : (
               activeOrders.map((order) => {
@@ -207,6 +205,10 @@ export default function Orders() {
                           <p className="text-xs text-text-secondary mt-0.5">
                             Placed on {new Date(order.createdAt).toLocaleString()}
                           </p>
+                          <Link
+                            to={`/orders/${order._id}`}
+                            className="inline-block text-xs font-bold text-primary hover:underline mt-1"
+                          >{t('trackThisOrder')}</Link>
                         </div>
                       </div>
 
@@ -221,14 +223,14 @@ export default function Orders() {
                           ) : (
                             <XCircle className="w-3.5 h-3.5" />
                           )}
-                          <span>Cancel Order</span>
+                          <span>{t('orderCancel')}</span>
                         </button>
                       )}
                     </div>
 
                     {/* Progress Bar */}
                     <div className="py-4 border-b border-border">
-                      <p className="text-xs font-semibold text-text-secondary mb-4">Delivery Progress</p>
+                      <p className="text-xs font-semibold text-text-secondary mb-4">{t('deliveryProgress')}</p>
                       <div className="grid grid-cols-4 gap-2 text-center relative">
                         <div className="absolute top-4 left-[12%] right-[12%] h-1 bg-bg -z-0">
                           <div
@@ -238,10 +240,10 @@ export default function Orders() {
                         </div>
 
                         {[
-                          { stepNum: 1, label: 'Confirmed', icon: CheckCircle2 },
-                          { stepNum: 2, label: 'Preparing', icon: Clock },
-                          { stepNum: 3, label: 'On The Way', icon: Truck },
-                          { stepNum: 4, label: 'Delivered', icon: Package },
+                          { stepNum: 1, label: t('confirmedStatus'), icon: CheckCircle2 },
+                          { stepNum: 2, label: t('statusPreparing'), icon: Clock },
+                          { stepNum: 3, label: t('statusOnTheWay'), icon: Truck },
+                          { stepNum: 4, label: t('statusDelivered'), icon: Package },
                         ].map((st) => {
                           const Icon = st.icon;
                           const isCurrent = step === st.stepNum;
@@ -253,7 +255,7 @@ export default function Orders() {
                                   isCurrent
                                     ? 'bg-primary text-white ring-4 ring-primary/20 scale-110 shadow-md'
                                     : isDone
-                                    ? 'bg-primary text-white'
+                                    ? 'bg-primary text-white border border-transparent'
                                     : 'bg-bg text-text-secondary border border-border'
                                 }`}
                               >
@@ -271,11 +273,11 @@ export default function Orders() {
                     {/* Details */}
                     <div className="py-2 grid md:grid-cols-2 gap-6">
                       <div>
-                        <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Order Items</h4>
+                        <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">{t('orderItems')}</h4>
                         <div className="space-y-1.5 text-xs text-text-secondary">
                           {order.items?.map((item, i) => (
                             <div key={i} className="flex justify-between">
-                              <span>{item.quantity}x {item.name}</span>
+                              <span>{item.quantity}x {L(item.name)}</span>
                               <span className="font-semibold text-text">KD {(item.price * item.quantity).toFixed(3)}</span>
                             </div>
                           ))}
@@ -283,7 +285,7 @@ export default function Orders() {
                       </div>
 
                       <div className="space-y-2 text-xs">
-                        <h4 className="font-bold text-primary uppercase tracking-wider mb-1">Delivery Address</h4>
+                        <h4 className="font-bold text-primary uppercase tracking-wider mb-1">{t('planEditAddress')}</h4>
                         <p className="text-text-secondary flex items-start gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                           <span>{order.address}</span>
@@ -302,7 +304,7 @@ export default function Orders() {
                     <div className="pt-3 border-t border-border space-y-1.5">
                       {order.couponCode && (
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-text-secondary">Coupon Applied</span>
+                          <span className="text-text-secondary">{t('couponApplied')}</span>
                           <span className="inline-flex items-center gap-1.5 text-success font-bold">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             {order.couponCode}
@@ -314,7 +316,7 @@ export default function Orders() {
                       )}
 
                         <div className="flex items-center justify-between text-sm font-extrabold text-text">
-                          <span>Total</span>
+                          <span>{t('cartTotal')}</span>
                           <span className="text-xl font-extrabold text-text">KD {order.totalPrice?.toFixed(3)}</span>
                       </div>
                     </div>
@@ -329,7 +331,7 @@ export default function Orders() {
             {pastOrders.length === 0 ? (
               <div className="text-center py-16 bg-surface rounded-xl border border-border">
                 <Package className="w-10 h-10 text-text-secondary mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-semibold text-text">No order history yet</p>
+                <p className="text-sm font-semibold text-text">{t('noOrderHistory')}</p>
               </div>
             ) : (
               pastOrders.map((order) => (
@@ -371,7 +373,7 @@ export default function Orders() {
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-light text-white text-xs font-semibold transition-colors shadow-sm"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Reorder</span>
+                      <span>{t('orderReorder')}</span>
                     </button>
                   </div>
                 </div>

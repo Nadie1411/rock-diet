@@ -20,11 +20,15 @@ import {
 import { useCart } from "../context/CartContext";
 import { orderService } from "../services/orderService";
 import { couponService } from "../services/couponService";
-import { offerService } from "../services/offerService";
+import PromoCodes from "./PromoCodes";
 import { addonService } from "../services/addonService";
 import { ApiError } from "../services/api";
+import AddressPicker from "./AddressPicker";
+import { format as formatAddress } from "../utils/addressBook";
+import { useT } from "../i18n/useT";
 
 export default function CartDrawer() {
+  const { t, L } = useT();
   const navigate = useNavigate();
   const {
     items,
@@ -38,7 +42,8 @@ export default function CartDrawer() {
   } = useCart();
 
   const [step, setStep] = useState("cart"); // 'cart' | 'checkout' | 'success'
-  const [address, setAddress] = useState("");
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [zoneIssue, setZoneIssue] = useState(null);
   const [phone, setPhone] = useState("");
   const [phoneCountry, setPhoneCountry] = useState("kw");
   const [note, setNote] = useState("");
@@ -51,42 +56,20 @@ export default function CartDrawer() {
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
-  const [availableOffers, setAvailableOffers] = useState([]);
   const [globalAddons, setGlobalAddons] = useState([]);
   const [expandedAddons, setExpandedAddons] = useState({});
   const [addonLoading, setAddonLoading] = useState(null);
   const [countryOpen, setCountryOpen] = useState(false);
   const countryRef = useRef(null);
 
+  // Kuwait only.
+  //
+  // The mobile app has no country picker at all — it sends '+965' + the
+  // number — and the API validates against /^\+965[569]\d{7}$/. Offering
+  // other countries put choices on screen that could only ever be rejected,
+  // which is how a signup could fail with a perfectly valid Egyptian number.
   const COUNTRIES = [
     { code: "kw", flag: "🇰🇼", dial: "+965", name: "Kuwait" },
-    { code: "sa", flag: "🇸🇦", dial: "+966", name: "Saudi Arabia" },
-    { code: "ae", flag: "🇦🇪", dial: "+971", name: "UAE" },
-    { code: "qa", flag: "🇶🇦", dial: "+974", name: "Qatar" },
-    { code: "bh", flag: "🇧🇭", dial: "+973", name: "Bahrain" },
-    { code: "om", flag: "🇴🇲", dial: "+968", name: "Oman" },
-    { code: "eg", flag: "🇪🇬", dial: "+20", name: "Egypt" },
-    { code: "jo", flag: "🇯🇴", dial: "+962", name: "Jordan" },
-    { code: "lb", flag: "🇱🇧", dial: "+961", name: "Lebanon" },
-    { code: "iq", flag: "🇮🇶", dial: "+964", name: "Iraq" },
-    { code: "sy", flag: "🇸🇾", dial: "+963", name: "Syria" },
-    { code: "ps", flag: "🇵🇸", dial: "+970", name: "Palestine" },
-    { code: "ye", flag: "🇾🇪", dial: "+967", name: "Yemen" },
-    { code: "ly", flag: "🇱🇾", dial: "+218", name: "Libya" },
-    { code: "tn", flag: "🇹🇳", dial: "+216", name: "Tunisia" },
-    { code: "dz", flag: "🇩🇿", dial: "+213", name: "Algeria" },
-    { code: "ma", flag: "🇲🇦", dial: "+212", name: "Morocco" },
-    { code: "sd", flag: "🇸🇩", dial: "+249", name: "Sudan" },
-    { code: "so", flag: "🇸🇴", dial: "+252", name: "Somalia" },
-    { code: "dj", flag: "🇩🇯", dial: "+253", name: "Djibouti" },
-    { code: "km", flag: "🇰🇲", dial: "+269", name: "Comoros" },
-    { code: "mr", flag: "🇲🇷", dial: "+222", name: "Mauritania" },
-    { code: "tr", flag: "🇹🇷", dial: "+90", name: "Turkey" },
-    { code: "in", flag: "🇮🇳", dial: "+91", name: "India" },
-    { code: "pk", flag: "🇵🇰", dial: "+92", name: "Pakistan" },
-    { code: "ph", flag: "🇵🇭", dial: "+63", name: "Philippines" },
-    { code: "us", flag: "🇺🇸", dial: "+1", name: "USA" },
-    { code: "gb", flag: "🇬🇧", dial: "+44", name: "UK" },
   ];
 
   const selectedCountry = COUNTRIES.find((c) => c.code === phoneCountry) || COUNTRIES[0];
@@ -95,7 +78,8 @@ export default function CartDrawer() {
   useEffect(() => {
     if (!isOpen) {
       setStep("cart");
-      setAddress("");
+      setSelectedAddress(null);
+      setZoneIssue(null);
       setPhone("");
       setPhoneCountry("kw");
       setNote("");
@@ -126,20 +110,6 @@ export default function CartDrawer() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [countryOpen]);
 
-  // Load active offers for promo-code discovery
-  useEffect(() => {
-    let mounted = true;
-    offerService
-      .getOffers({ active: true })
-      .then((res) => {
-        if (mounted) setAvailableOffers(res.data || []);
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   // Load all active addons globally
   useEffect(() => {
     if (!isOpen) return;
@@ -167,33 +137,44 @@ export default function CartDrawer() {
     e.preventDefault();
     setError("");
 
-    const trimmedAddress = address.trim();
+    const trimmedAddress = formatAddress(selectedAddress);
     const trimmedPhone = phone.trim();
-    const fullPhone = `${selectedCountry.dial} ${trimmedPhone}`;
+    const fullPhone = `${selectedCountry.dial}${trimmedPhone}`;
 
-    if (!trimmedAddress) {
-      setError("Please provide your delivery address.");
+    if (!selectedAddress || !trimmedAddress) {
+      setError(t('checkoutSelectAddress'));
       return;
     }
-    if (trimmedAddress.length < 5) {
-      setError("Delivery address must be at least 5 characters.");
+    // The same rules the server enforces, checked here so the customer is
+    // told before they press pay rather than after.
+    if (zoneIssue?.kind === 'unserved') {
+      setError(t('checkoutAreaNotServed'));
+      return;
+    }
+    if (zoneIssue?.kind === 'belowMinimum') {
+      setError(
+        t('checkoutBelowMinimum', {
+          zone: zoneIssue.zone.name,
+          amount: `KD ${Number(zoneIssue.minimum).toFixed(3)}`,
+        }),
+      );
       return;
     }
     if (!trimmedPhone) {
-      setError("Please provide your phone number.");
+      setError(t('checkoutPhoneRequired'));
       return;
     }
     if (trimmedPhone.length < 6) {
-      setError("Phone number must be at least 6 digits.");
+      setError(t('checkoutPhoneTooShort'));
       return;
     }
     if (!deliveryTime) {
-      setError("Please select a delivery time.");
+      setError(t('checkoutPickTime'));
       return;
     }
     if (deliveryTime === "specific") {
       if (!specificTime.trim()) {
-        setError("Please enter your preferred delivery time.");
+        setError(t('checkoutEnterTime'));
         return;
       }
     }
@@ -211,8 +192,22 @@ export default function CartDrawer() {
       const order = data.order || {};
       setPlacedOrder(order);
       await clearCart();
-      // If backend returns a payment URL (Ecom Checkout), redirect to it
+      // If backend returns a payment URL (Ecom Checkout), redirect to it.
+      //
+      // The gateway comes back to a success URL configured in the admin panel,
+      // which carries nothing identifying the order — so the id is left here
+      // for /payment/success to reconcile against. sessionStorage rather than
+      // state: the redirect leaves the app entirely and comes back as a fresh
+      // page load with everything in memory gone.
       if (data.paymentUrl) {
+        if (order._id) {
+          try {
+            sessionStorage.setItem("pending_order_id", order._id);
+          } catch {
+            // Private browsing with storage blocked: the success page falls
+            // back to telling the customer to check Orders.
+          }
+        }
         window.location.href = data.paymentUrl;
         return;
       }
@@ -222,10 +217,10 @@ export default function CartDrawer() {
         if (err.data?.error?.length) {
           setError(err.data.error.map((e) => e.message).join(" "));
         } else {
-          setError(err.message || "Failed to place order.");
+          setError(err.message || t('orderPlaceFailed'));
         }
       } else {
-        setError("Network error. Please try again.");
+        setError(t('networkRetry'));
       }
     } finally {
       setLoading(false);
@@ -252,7 +247,7 @@ export default function CartDrawer() {
       setCouponCode("");
     } catch (err) {
       setAppliedCoupon(null);
-      setCouponError(err.message || "Invalid coupon code.");
+      setCouponError(err.message || t('couponInvalid'));
     } finally {
       setCouponLoading(false);
     }
@@ -366,12 +361,8 @@ export default function CartDrawer() {
                       <ShoppingBag className="w-8 h-8 text-text-secondary" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-text">
-                        Your cart is empty
-                      </h3>
-                      <p className="text-xs text-text-secondary mt-1">
-                        Add some delicious healthy meals to get started!
-                      </p>
+                      <h3 className="text-base font-bold text-text">{t('cartEmpty')}</h3>
+                      <p className="text-xs text-text-secondary mt-1">{t('cartEmptyPrompt')}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -379,9 +370,7 @@ export default function CartDrawer() {
                         navigate("/menu");
                       }}
                       className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-light transition-colors"
-                    >
-                      Browse Menu
-                    </button>
+                    >{t('cartBrowseMenu')}</button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -441,7 +430,7 @@ export default function CartDrawer() {
                             <button
                               onClick={() => removeItem(prod._id)}
                               className="p-1.5 text-text-secondary hover:text-error transition-colors"
-                              aria-label="Remove item"
+                              aria-label={t('removeItem')}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -458,9 +447,7 @@ export default function CartDrawer() {
             {step === "checkout" && (
               <form onSubmit={handlePlaceOrder} className="space-y-4">
                 <div className="bg-surface border border-border rounded-xl p-4 space-y-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
-                    Order Summary
-                  </h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary">{t('orderSummary')}</h4>
                   <div className="text-xs text-text-secondary space-y-1.5">
                     {items.map((it) => {
                       const addonsTotal = getItemAddonTotal(it);
@@ -495,7 +482,7 @@ export default function CartDrawer() {
                     })}
                   </div>
                   <div className="pt-2 border-t border-border flex justify-between text-sm font-extrabold text-text">
-                    <span>Subtotal</span>
+                    <span>{t('cartSubtotal')}</span>
                     <span>KD {subtotal.toFixed(3)}</span>
                   </div>
                   {appliedCoupon && (
@@ -510,7 +497,7 @@ export default function CartDrawer() {
                     </div>
                   )}
                   <div className="flex justify-between items-center text-sm font-extrabold text-text">
-                    <span>Total</span>
+                    <span>{t('cartTotal')}</span>
                     <span className="text-primary">
                       KD {displaySubtotal.toFixed(3)}
                     </span>
@@ -519,9 +506,7 @@ export default function CartDrawer() {
 
                 {/* Coupon Input */}
                 <div className="bg-surface border border-border rounded-xl p-3 space-y-2">
-                  <label className="block text-xs font-semibold text-text mb-1">
-                    Coupon Code
-                  </label>
+                  <label className="block text-xs font-semibold text-text mb-1">{t('couponCode')}</label>
                   {appliedCoupon ? (
                     <div className="flex items-center justify-between bg-success/10 border border-success/30 rounded-lg px-3 py-2">
                       <span className="text-xs font-bold text-success tracking-wide">
@@ -531,9 +516,7 @@ export default function CartDrawer() {
                         type="button"
                         onClick={handleRemoveCoupon}
                         className="text-[10px] font-semibold text-error hover:underline"
-                      >
-                        Remove
-                      </button>
+                      >{t('commonRemove')}</button>
                     </div>
                   ) : (
                     <div className="flex gap-2">
@@ -543,7 +526,7 @@ export default function CartDrawer() {
                         onChange={(e) =>
                           setCouponCode(e.target.value.toUpperCase())
                         }
-                        placeholder="Enter promo code"
+                        placeholder={t('enterPromo')}
                         className="flex-1 px-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-bold tracking-widest"
                       />
                       <button
@@ -568,64 +551,26 @@ export default function CartDrawer() {
                   )}
                 </div>
 
-                {/* Available Promo Codes */}
-                {availableOffers.length > 0 && !appliedCoupon && (
-                  <div className="bg-surface border border-border rounded-xl p-3 space-y-2">
-                    <p className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary uppercase tracking-wider">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Available Promo Codes
-                    </p>
-                    <div className="space-y-1.5">
-                      {availableOffers.map((offer) => (
-                        <button
-                          key={offer._id}
-                          type="button"
-                          onClick={() => handleApplyOfferCode(offer.promoCode)}
-                          disabled={!offer.promoCode}
-                          className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-bg border border-border hover:border-primary transition-colors text-left disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          <span className="min-w-0">
-                            <span className="block text-[10px] font-extrabold text-primary tracking-widest">
-                              {offer.promoCode}
-                            </span>
-                            <span className="block text-[10px] text-text-secondary truncate">
-                              {offer.title}
-                            </span>
-                          </span>
-                          <span className="shrink-0 text-[10px] font-bold text-warning">
-                            {offer.discountPercent > 0 &&
-                              `${offer.discountPercent}% OFF`}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-text-secondary">
-                      Tap a code to apply it, then press Apply.
-                    </p>
-                  </div>
+                {/* Every code the customer may use, from both sources and
+                    with the ones that have no code left out — this listed
+                    offers only, and neither of ours carries a code, so it
+                    drew blank rows nobody could press. */}
+                {!appliedCoupon && (
+                  <PromoCodes onApply={handleApplyOfferCode} />
                 )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-text mb-1">
-                    Delivery Address *
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-3 w-4 h-4 text-text-secondary" />
-                    <textarea
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Street, Building, Area, Kuwait City"
-                      rows={2}
-                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      required
-                    />
-                  </div>
+                  <label className="block text-xs font-semibold text-text mb-1">{t('deliveryAddressRequired')}</label>
+                  <AddressPicker
+                    value={selectedAddress}
+                    onChange={setSelectedAddress}
+                    subtotal={subtotal}
+                    onIssueChange={setZoneIssue}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-text mb-1">
-                    Phone Number *
-                  </label>
+                  <label className="block text-xs font-semibold text-text mb-1">{t('phoneRequired')}</label>
                   <div className="flex gap-2">
                     <div className="relative shrink-0" ref={countryRef}>
                       <button
@@ -675,9 +620,7 @@ export default function CartDrawer() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-text mb-1">
-                    Delivery Time *
-                  </label>
+                  <label className="block text-xs font-semibold text-text mb-1">{t('deliveryTimeRequired')}</label>
                   <div className="relative">
                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
                     <select
@@ -689,11 +632,11 @@ export default function CartDrawer() {
                       className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
                       required
                     >
-                      <option value="">Select delivery time</option>
-                      <option value="Morning (7:00 AM – 10:00 AM)">Morning (7:00 AM – 10:00 AM)</option>
-                      <option value="Afternoon (12:00 PM – 3:00 PM)">Afternoon (12:00 PM – 3:00 PM)</option>
-                      <option value="Evening (6:00 PM – 9:00 PM)">Evening (6:00 PM – 9:00 PM)</option>
-                      <option value="specific">Specific Time...</option>
+                      <option value="">{t('selectDeliveryTime')}</option>
+                      <option value="Morning (7:00 AM – 10:00 AM)">{t('slotMorning')}</option>
+                      <option value="Afternoon (12:00 PM – 3:00 PM)">{t('slotAfternoon')}</option>
+                      <option value="Evening (6:00 PM – 9:00 PM)">{t('slotEvening')}</option>
+                      <option value="specific">{t('specificTime')}</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
                   </div>
@@ -722,7 +665,7 @@ export default function CartDrawer() {
                     <textarea
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      placeholder="e.g. Leave at door, extra sauce..."
+                      placeholder={t('noteExample')}
                       rows={2}
                       className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg border border-border text-text text-xs placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     />
@@ -734,21 +677,19 @@ export default function CartDrawer() {
                     type="button"
                     onClick={() => setStep("cart")}
                     className="flex-1 py-2.5 rounded-xl border border-border text-text text-xs font-semibold hover:bg-surface transition-colors"
-                  >
-                    Back to Cart
-                  </button>
+                  >{t('backToCart')}</button>
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || !selectedAddress || Boolean(zoneIssue)}
                     className="flex-[2] py-2.5 rounded-xl bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-60"
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Placing Order...
-                      </>
+                        <Loader2 className="w-4 h-4 animate-spin" />{t('placingOrder')}</>
                     ) : (
-                      `Confirm Order (KD ${displaySubtotal.toFixed(3)})`
+                      t('confirmOrderAmount', {
+                        amount: `KD ${displaySubtotal.toFixed(3)}`,
+                      })
                     )}
                   </button>
                 </div>
@@ -762,27 +703,21 @@ export default function CartDrawer() {
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold text-text">
-                    Order Placed Successfully!
-                  </h3>
+                  <h3 className="text-xl font-extrabold text-text">{t('orderPlacedSuccess')}</h3>
                   <p className="text-xs text-text-secondary mt-1">
                     Order ID:{" "}
                     <span className="font-bold text-primary">
                       {placedOrder?._id?.slice(-8).toUpperCase()}
                     </span>
                   </p>
-                  <p className="text-xs text-text-secondary mt-0.5">
-                    We've sent a confirmation email with your order details.
-                  </p>
+                  <p className="text-xs text-text-secondary mt-0.5">{t('confirmationEmailSent')}</p>
                 </div>
 
                 <div className="pt-4">
                   <button
                     onClick={handleViewOrders}
                     className="w-full py-3 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-light transition-colors shadow-md"
-                  >
-                    Track Your Orders
-                  </button>
+                  >{t('trackYourOrders')}</button>
                 </div>
               </div>
             )}
@@ -891,15 +826,13 @@ export default function CartDrawer() {
               })}
 
               <div className="flex justify-between items-center text-sm font-extrabold text-text">
-                <span>Subtotal</span>
+                <span>{t('cartSubtotal')}</span>
                 <span className="text-primary text-base">
                   KD {subtotal.toFixed(3)}
                 </span>
               </div>
 
-              <p className="text-[10px] text-text-secondary">
-                Taxes and delivery calculated at checkout.
-              </p>
+              <p className="text-[10px] text-text-secondary">{t('taxesAtCheckout')}</p>
 
               {/* Continue Shopping */}
               <button
@@ -909,16 +842,14 @@ export default function CartDrawer() {
                   navigate("/menu");
                 }}
                 className="w-full py-2.5 rounded-xl border border-border text-text text-xs font-semibold hover:bg-bg hover:border-primary hover:text-primary transition-colors"
-              >
-                Continue Shopping
-              </button>
+              >{t('continueShopping')}</button>
 
               {/* Checkout */}
               <button
                 onClick={handleProceedToCheckout}
                 className="w-full py-3 rounded-xl bg-primary hover:bg-primary-light text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
               >
-                <span>Proceed to Checkout</span>
+                <span>{t('proceedCheckout')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

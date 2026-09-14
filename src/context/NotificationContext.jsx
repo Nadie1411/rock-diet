@@ -31,22 +31,25 @@ export function NotificationProvider({ children }) {
     if (!isAuthenticated) return;
     try {
       const res = await notificationService.getUnreadCount();
-      setUnreadCount(res.data?.count || 0);
+      // `{ unread }` here, not `{ count }` — reading the wrong key left the
+      // badge permanently at zero rather than failing visibly.
+      setUnreadCount(res.data?.unread ?? res.data?.count ?? 0);
     } catch {
       // silent
     }
   }, [isAuthenticated]);
 
-  // Fetch unhandled count
-  const fetchUnhandledCount = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      const res = await notificationService.getUnhandledCount();
-      setUnhandledCount(res.data?.count || 0);
-    } catch {
-      // silent
-    }
-  }, [isAuthenticated]);
+  // "Handled" was a concept of the website's own admin page, which the
+  // Next.js panel replaced. This backend has no such endpoint, so asking for
+  // it only ever produced a 404 in the console on every login — a failure
+  // that looks real while nothing is actually wrong. The count stays at zero
+  // and the badge that reads it stays hidden, which is the same outcome the
+  // 404 produced, minus the noise.
+  //
+  // Kept as a function because three effects call it and it is part of the
+  // context's published shape; removing those is a wider change than this
+  // needs to be.
+  const fetchUnhandledCount = useCallback(async () => {}, []);
 
   // Fetch notifications list
   const fetchNotifications = useCallback(async () => {
@@ -54,7 +57,16 @@ export function NotificationProvider({ children }) {
     setLoading(true);
     try {
       const res = await notificationService.getNotifications({ limit: 20 });
-      setNotifications(res.data || []);
+      // The feed answers with `{ notifications, unread }` — the page plus the
+      // unread total across the whole feed, not just this page. Held to an
+      // array here because everything downstream maps over it, and a bare
+      // object reaching the navbar took the entire app down with
+      // "notifications.slice is not a function".
+      const data = res.data;
+      setNotifications(
+        Array.isArray(data) ? data : (data?.notifications ?? data?.items ?? []),
+      );
+      if (typeof data?.unread === 'number') setUnreadCount(data.unread);
     } catch {
       // silent
     } finally {

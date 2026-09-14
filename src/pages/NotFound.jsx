@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, Home, SearchX } from "lucide-react";
+import { useT } from '../i18n/useT';
 
 const NotFound = () => {
+  const { t, L } = useT();
   return (
     <div className="min-h-screen bg-bg text-text flex items-center justify-center px-6">
       <div className="text-center max-w-lg">
@@ -11,35 +13,24 @@ const NotFound = () => {
           </div>
         </div>
 
-        <p className="text-primary font-bold text-sm uppercase tracking-widest mb-3">
-          Error 404
-        </p>
+        <p className="text-primary font-bold text-sm uppercase tracking-widest mb-3">{t('error404')}</p>
 
-        <h1 className="text-5xl md:text-6xl font-extrabold text-text mb-4">
-          Page Not Found
-        </h1>
+        <h1 className="text-5xl md:text-6xl font-extrabold text-text mb-4">{t('pageNotFound')}</h1>
 
-        <p className="text-text-secondary text-base md:text-lg leading-relaxed mb-8">
-          Sorry, we couldn't find the page you're looking for. It may have
-          been moved, deleted, or the URL might be incorrect.
-        </p>
+        <p className="text-text-secondary text-base md:text-lg leading-relaxed mb-8">{t('notFoundBody')}</p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
             to="/"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity"
           >
-            <Home className="w-5 h-5" />
-            Back to Home
-          </Link>
+            <Home className="w-5 h-5" />{t('checkoutBackHome')}</Link>
 
           <button
             onClick={() => window.history.back()}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-surface text-text font-semibold hover:bg-bg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
-            Go Back
-          </button>
+            <ArrowLeft className="w-5 h-5" />{t('goBack')}</button>
         </div>
       </div>
     </div>

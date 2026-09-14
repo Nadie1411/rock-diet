@@ -11,7 +11,7 @@
   --color-on-primary: #FFFFFF;
   --color-on-primary-muted: #D9F5F2;
 
-  /* Neutrals */
+  /* Surfaces */
   --color-bg: #F5F7F7;
   --color-surface: #FFFFFF;
   --color-text: #1A2E2E;
@@ -19,12 +19,12 @@
   --color-border: #E2E8E6;
   --color-disabled: #C4CAC7;
 
-  /* Macro / data colors */
+  /* Macros */
   --color-protein: #0D7377;
   --color-carbs: #F5B700;
   --color-fat: #3B82F6;
 
-  /* Semantic */
+  /* Status */
   --color-success: #16A34A;
   --color-warning: #F59E0B;
   --color-error: #DC2626;
@@ -43,6 +43,8 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+
 
 @keyframes bounce-slow {
   0%, 100% {
@@ -192,4 +194,84 @@ body {
   .sticker-total {
     font-size: 12px;
   }
+}
+
+/* ============================================================
+   Package gradients
+   ============================================================
+
+   Bold and saturated: vivid through high chroma at a medium-low lightness,
+   not through being pale. Teal and emerald only — the greens already in the
+   mark — travelling from near-black forest to a bright cyan-teal.
+
+   No scrim. An earlier version laid a dark overlay over brighter colour so
+   white text would pass contrast, and it desaturated everything into one
+   murky green. Choosing colours already dark enough leaves the chroma
+   intact: the brightest stop in the set measures 4.55:1 against white on its
+   own, and the darkest 14.58:1.
+
+   The four ramps differ by hue rather than by darkness, so a page of plans is
+   colourful instead of one colour at four brightnesses.
+*/
+
+.rd-grad {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* A light from one corner and a faint mint bloom from the other, under the
+   content and above the base, so the surface looks lit rather than printed. */
+.rd-grad::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(115% 85% at 84% 6%, rgba(255, 255, 255, 0.20), transparent 55%),
+    radial-gradient(75% 65% at 6% 100%, rgba(94, 234, 212, 0.16), transparent 60%);
+  pointer-events: none;
+}
+
+.rd-grad-forest  { background-image: linear-gradient(145deg, #063D1C 0%, #0A6B27 52%, #078832 100%); }
+.rd-grad-emerald { background-image: linear-gradient(145deg, #053A28 0%, #046038 52%, #038655 100%); }
+.rd-grad-teal    { background-image: linear-gradient(145deg, #04343A 0%, #065C57 52%, #07837A 100%); }
+.rd-grad-sea     { background-image: linear-gradient(145deg, #032D3A 0%, #045A6B 52%, #04819A 100%); }
+
+/* A lit rim rather than a border, so the card glows at its edge. */
+.rd-glow {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(3, 32, 30, 0.30),
+    0 18px 40px -20px rgba(4, 90, 80, 0.65);
+}
+
+/* Frosted chips on top of colour. */
+.rd-glass {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+/* A quiet lift. Pointer devices only: on a phone a sticky hover leaves the
+   card raised after a tap. */
+@media (hover: hover) {
+  .rd-lift {
+    transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+                box-shadow 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .rd-lift:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.26),
+      0 2px 4px rgba(3, 32, 30, 0.32),
+      0 26px 54px -22px rgba(4, 90, 80, 0.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-lift { transition: none; }
+  .rd-lift:hover { transform: none; }
 }

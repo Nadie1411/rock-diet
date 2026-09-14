@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../services/api';
+import { hasDraft } from '../utils/subscribeDraft';
 import rockDietLogo from '../assets/rock-diet-logo.png';
+import { useT } from '../i18n/useT';
 
 export default function Login() {
+  const { t, L } = useT();
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,19 +23,23 @@ export default function Login() {
     setError('');
 
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError(t('fillAllFields'));
       return;
     }
 
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/');
+      // Back to what they were doing. An unfinished subscription counts on
+      // its own: they reached this screen from the pay button, and landing on
+      // the home page instead means finding the wizard again from scratch.
+      const from = location.state?.from || (hasDraft() ? '/subscribe' : '/');
+      navigate(from, { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || 'Login failed. Please try again.');
       } else {
-        setError('Network error. Please check your connection and try again.');
+        setError(t('networkErrorLong'));
       }
     } finally {
       setLoading(false);
@@ -46,19 +54,15 @@ export default function Login() {
           onClick={() => navigate(-1)}
           className="inline-flex items-center gap-2 text-sm font-semibold text-text-secondary hover:text-primary transition-colors mb-6"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+          <ArrowLeft className="w-4 h-4" />{t('commonBack')}</button>
 
         {/* Header */}
         <div className="text-center mb-8">
-          <img src={rockDietLogo} alt="Rock Diet" className="h-12 w-auto object-contain mx-auto mb-4" />
+          <img src={rockDietLogo} alt={t('appName')} className="h-12 w-auto object-contain mx-auto mb-4" />
           <h1 className="text-3xl font-extrabold tracking-tight text-text">
-            Welcome <span className="text-primary">Back</span>
+            {t('headingWelcome')}
           </h1>
-          <p className="text-text-secondary text-sm mt-1">
-            Login to track orders and manage your account.
-          </p>
+          <p className="text-text-secondary text-sm mt-1">{t('loginSubtitle')}</p>
         </div>
 
         {/* Card */}
@@ -73,9 +77,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-text mb-1.5">
-                Email Address
-              </label>
+              <label htmlFor="email" className="block text-xs font-semibold text-text mb-1.5">{t('emailAddress')}</label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
@@ -83,7 +85,7 @@ export default function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={t('authEmailHint')}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   required
                 />
@@ -92,9 +94,7 @@ export default function Login() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-text mb-1.5">
-                Password
-              </label>
+              <label htmlFor="password" className="block text-xs font-semibold text-text mb-1.5">{t('authPassword')}</label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
@@ -115,6 +115,12 @@ export default function Login() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <div className="text-right mt-2">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-semibold text-primary hover:underline"
+                >{t('authForgot')}</Link>
+              </div>
             </div>
 
             {/* Submit */}
@@ -125,11 +131,9 @@ export default function Login() {
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Logging in...
-                </>
+                  <Loader2 className="w-4 h-4 animate-spin" />{t('loggingIn')}</>
               ) : (
-                'Login'
+                t('authLogin')
               )}
             </button>
           </form>
@@ -137,16 +141,14 @@ export default function Login() {
           {/* Divider */}
           <div className="flex items-center gap-3 my-6">
             <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-text-secondary">or</span>
+            <span className="text-xs text-text-secondary">{t('authOr')}</span>
             <div className="flex-1 h-px bg-border" />
           </div>
 
           {/* Signup link */}
           <p className="text-center text-sm text-text-secondary">
-            Don't have an account?{' '}
-            <Link to="/signup" className="font-semibold text-primary hover:text-primary-light transition-colors">
-              Sign up
-            </Link>
+            {t('authNoAccount')}{' '}
+            <Link to="/signup" className="font-semibold text-primary hover:text-primary-light transition-colors">{t('signUp')}</Link>
           </p>
         </div>
       </div>

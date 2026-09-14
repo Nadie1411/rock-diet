@@ -13,7 +13,6 @@ export const notificationService = {
 
   getUnreadCount: () => api.get('notification/unread-count', { auth: true }),
 
-  getUnhandledCount: () => api.get('notification/unhandled-count', { auth: true }),
 
   markAsRead: (notificationId) =>
     api.patch(`notification/${notificationId}/read`, {}, { auth: true }),
@@ -28,10 +27,10 @@ export const notificationService = {
     api.patch('notification/handle-all', {}, { auth: true }),
 
   saveFcmToken: (token) =>
-    api.post('notification/fcm-token', { token }, { auth: true }),
+    api.post('notification/device', { token }, { auth: true }),
 
   removeFcmToken: (token) =>
-    api.delete('notification/fcm-token', {
+    api.delete('notification/device', {
       auth: true,
       body: { token },
     }),

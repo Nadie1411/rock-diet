@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { cartService } from '../services/cartService';
 import { useAuth } from './AuthContext';
 
@@ -6,13 +6,26 @@ const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const { isAuthenticated } = useAuth();
+
+  // These functions get captured by callers — the auth gate replays an add
+  // that was created while signed out, and the copy it holds closed over
+  // `isAuthenticated === false`. Reading through a ref makes every guard see
+  // the live value instead of whatever was true when the closure was made,
+  // so a replayed add succeeds instead of refusing for not being logged in.
+  // Assigned during render, not from an effect. This provider sits above the
+  // auth gate, and child effects run before parent ones — so an effect here
+  // would still hold the old value at the moment the gate replays a queued
+  // add, and the guard below would refuse it for not being signed in. During
+  // render it is simply always current.
+  const authed = useRef(isAuthenticated);
+  authed.current = isAuthenticated;
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState('');
 
   const refreshCart = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!authed.current) {
       setCart(null);
       return;
     }
@@ -36,8 +49,8 @@ export function CartProvider({ children }) {
   const toggleCart = () => setIsOpen((prev) => !prev);
 
   const addToCart = async (productId, quantity = 1, addons = []) => {
-    if (!isAuthenticated) {
-      throw new Error('Please login to add items to your cart.');
+    if (!authed.current) {
+      throw new Error(t('cartLoginToAdd'));
     }
     try {
       setError('');
@@ -46,14 +59,14 @@ export function CartProvider({ children }) {
       openCart();
       return res;
     } catch (err) {
-      setError(err.message || 'Failed to add item to cart');
+      setError(err.message || t('cartAddFailed'));
       throw err;
     }
   };
 
   const addOfferToCart = async (offerId) => {
-    if (!isAuthenticated) {
-      throw new Error('Please login to add this offer to your cart.');
+    if (!authed.current) {
+      throw new Error(t('cartLoginForOffer'));
     }
     try {
       setError('');
@@ -62,46 +75,46 @@ export function CartProvider({ children }) {
       openCart();
       return res;
     } catch (err) {
-      setError(err.message || 'Failed to add offer to cart');
+      setError(err.message || t('cartAddOfferFailed'));
       throw err;
     }
   };
 
   const updateQuantity = async (productId, quantity, addons) => {
-    if (!isAuthenticated) return;
+    if (!authed.current) return;
     try {
       setError('');
       const res = await cartService.updateCartItem(productId, quantity, addons);
       setCart(res.data?.cart ?? res.data);
       return res;
     } catch (err) {
-      setError(err.message || 'Failed to update item quantity');
+      setError(err.message || t('cartUpdateQtyFailed'));
       throw err;
     }
   };
 
   const removeItem = async (productId) => {
-    if (!isAuthenticated) return;
+    if (!authed.current) return;
     try {
       setError('');
       const res = await cartService.removeCartItem(productId);
       setCart(res.data?.cart ?? res.data);
       return res;
     } catch (err) {
-      setError(err.message || 'Failed to remove item');
+      setError(err.message || t('cartRemoveFailed'));
       throw err;
     }
   };
 
   const clearCart = async () => {
-    if (!isAuthenticated) return;
+    if (!authed.current) return;
     try {
       setError('');
       const res = await cartService.clearCart();
       setCart(res.data?.cart ?? res.data);
       return res;
     } catch (err) {
-      setError(err.message || 'Failed to clear cart');
+      setError(err.message || t('cartClearFailed'));
       throw err;
     }
   };

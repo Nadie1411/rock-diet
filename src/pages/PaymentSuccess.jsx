@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Home, ShoppingBag, ArrowRight, Loader2, XCircle } from "lucide-react";
 import { orderService } from "../services/orderService";
+import { useT } from '../i18n/useT';
 
 export default function PaymentSuccess() {
+  const { t, L } = useT();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [verifying, setVerifying] = useState(true);
@@ -11,20 +13,54 @@ export default function PaymentSuccess() {
   const [paymentInfo, setPaymentInfo] = useState(null);
 
   useEffect(() => {
-    const paymentToken = searchParams.get("paymentToken");
+    // One return URL serves every purchase, and it carries nothing saying
+    // what was bought. A subscription needs the screen that waits for the
+    // package to be applied, not the basket receipt — checkout marks which
+    // one this was on the way out.
+    let wasSubscription = false;
+    try {
+      wasSubscription = sessionStorage.getItem("pending_subscription") === "1";
+    } catch {
+      wasSubscription = false;
+    }
+    if (wasSubscription) {
+      navigate("/subscription/success", { replace: true });
+      return;
+    }
 
-    if (!paymentToken) {
+    // The gateway returns to a fixed success URL with no order identifier on
+    // it, so the id comes from what checkout stashed before redirecting. An
+    // orderId query parameter still wins if the gateway is ever configured to
+    // send one.
+    let orderId = searchParams.get("orderId");
+    if (!orderId) {
+      try {
+        orderId = sessionStorage.getItem("pending_order_id");
+      } catch {
+        orderId = null;
+      }
+    }
+
+    if (!orderId) {
       setVerifying(false);
       setVerified(false);
       return;
     }
 
     orderService
-      .verifyPayment(paymentToken)
+      .reconcilePayment(orderId)
       .then((res) => {
-        const data = res.data || res;
-        setVerified(data.verified === true);
-        setPaymentInfo(data);
+        const order = res.data || res;
+        // Reconciliation answers with the order as it now stands. Only "paid"
+        // counts as confirmed — "pending" means the gateway has not settled it
+        // yet, and the customer should not be told it went through.
+        setVerified(order?.paymentStatus === "paid");
+        setPaymentInfo(order);
+        try {
+          sessionStorage.removeItem("pending_order_id");
+        } catch {
+          // Nothing to clean up if storage is unavailable.
+        }
       })
       .catch(() => {
         setVerified(false);
@@ -32,7 +68,7 @@ export default function PaymentSuccess() {
       .finally(() => {
         setVerifying(false);
       });
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   useEffect(() => {
     if (!verifying) {
@@ -50,12 +86,8 @@ export default function PaymentSuccess() {
               <Loader2 className="w-10 h-10 animate-spin" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-extrabold text-text tracking-tight">
-                Verifying Payment...
-              </h1>
-              <p className="text-sm text-text-secondary">
-                Please wait while we confirm your payment with Ecom.
-              </p>
+              <h1 className="text-2xl font-extrabold text-text tracking-tight">{t('verifyingPayment')}</h1>
+              <p className="text-sm text-text-secondary">{t('confirmingPayment')}</p>
             </div>
           </>
         ) : verified ? (
@@ -64,37 +96,26 @@ export default function PaymentSuccess() {
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-extrabold text-text tracking-tight">
-                Payment Successful!
-              </h1>
-              <p className="text-sm text-text-secondary">
-                Thank you! Your order has been paid and confirmed. Our kitchen is
-                already preparing your fresh healthy meals.
-              </p>
+              <h1 className="text-2xl font-extrabold text-text tracking-tight">{t('paymentSuccessful')}</h1>
+              <p className="text-sm text-text-secondary">{t('paymentSuccessBody')}</p>
               {paymentInfo?.paymentMethod && (
                 <p className="text-xs text-text-secondary">
                   Payment method: {paymentInfo.paymentMethod}
                 </p>
               )}
             </div>
-            <p className="text-xs text-text-secondary bg-bg border border-border rounded-lg px-4 py-2.5">
-              Redirecting you to the home page in 8 seconds...
-            </p>
+            <p className="text-xs text-text-secondary bg-bg border border-border rounded-lg px-4 py-2.5">{t('redirecting8s')}</p>
             <div className="space-y-2.5 pt-2">
               <Link
                 to="/orders"
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary-light text-white text-sm font-bold transition-all shadow-md"
               >
-                <ShoppingBag className="w-4 h-4" />
-                Track Your Order
-              </Link>
+                <ShoppingBag className="w-4 h-4" />{t('trackYourOrder')}</Link>
               <Link
                 to="/"
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-border text-text font-semibold text-sm hover:bg-bg transition-colors"
               >
-                <Home className="w-4 h-4" />
-                Back to Home
-                <ArrowRight className="w-4 h-4" />
+                <Home className="w-4 h-4" />{t('checkoutBackHome')}<ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </>
@@ -104,32 +125,21 @@ export default function PaymentSuccess() {
               <Loader2 className="w-10 h-10" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-extrabold text-text tracking-tight">
-                Payment Pending
-              </h1>
-              <p className="text-sm text-text-secondary">
-                We received your payment request but it is still being processed.
-                Your order will be confirmed shortly. If you have any issues, please contact support.
-              </p>
+              <h1 className="text-2xl font-extrabold text-text tracking-tight">{t('paymentPending')}</h1>
+              <p className="text-sm text-text-secondary">{t('paymentPendingBody')}</p>
             </div>
-            <p className="text-xs text-text-secondary bg-bg border border-border rounded-lg px-4 py-2.5">
-              Redirecting you to the home page in 8 seconds...
-            </p>
+            <p className="text-xs text-text-secondary bg-bg border border-border rounded-lg px-4 py-2.5">{t('redirecting8s')}</p>
             <div className="space-y-2.5 pt-2">
               <Link
                 to="/orders"
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary-light text-white text-sm font-bold transition-all shadow-md"
               >
-                <ShoppingBag className="w-4 h-4" />
-                Track Your Order
-              </Link>
+                <ShoppingBag className="w-4 h-4" />{t('trackYourOrder')}</Link>
               <Link
                 to="/"
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-border text-text font-semibold text-sm hover:bg-bg transition-colors"
               >
-                <Home className="w-4 h-4" />
-                Back to Home
-                <ArrowRight className="w-4 h-4" />
+                <Home className="w-4 h-4" />{t('checkoutBackHome')}<ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </>

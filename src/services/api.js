@@ -46,7 +46,7 @@ const request = async (path, { method = 'GET', body, headers = {}, auth = false 
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
   const accessToken = localStorage.getItem('access_token');
-  const authHeaders = accessToken ? { 'Authorization': `Bearer ${accessToken}`, ...headers } : { ...headers };
+  const authHeaders = accessToken ? { 'Authorization': `bearer ${accessToken}`, ...headers } : { ...headers };
 
   const optionsHeaders = isFormData
     ? authHeaders
@@ -63,12 +63,17 @@ const request = async (path, { method = 'GET', body, headers = {}, auth = false 
 
   let res = await fetch(url, options);
 
-  if (res.status === 401 && auth) {
+  // Only try to recover a session that existed. A guest has no token to
+  // refresh, so this used to fall straight into the catch and tell them
+  // "Session expired. Please login again." — about a session they never had,
+  // on a page that simply needed an account. Now their 401 falls through to
+  // the normal error path and the caller can ask them to sign in.
+  if (res.status === 401 && auth && accessToken) {
     try {
       await refreshAccessToken();
       const newAccessToken = localStorage.getItem('access_token');
       if (newAccessToken) {
-        options.headers['Authorization'] = `Bearer ${newAccessToken}`;
+        options.headers['Authorization'] = `bearer ${newAccessToken}`;
       }
       res = await fetch(url, options);
     } catch {

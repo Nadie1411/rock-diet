@@ -8,6 +8,8 @@ export const couponService = {
     const path = queryString ? `coupon?${queryString}` : 'coupon';
     return api.get(path);
   },
+  /** Only what this customer can still use — spent codes are left out. */
+  getAvailableCoupons: () => api.get('coupon/available', { auth: true }),
   getCouponById: (id) => api.get(`coupon/${id}`),
   createCoupon: (data) => api.post('coupon', data, { auth: true }),
   updateCoupon: (id, data) => api.patch(`coupon/${id}`, data, { auth: true }),

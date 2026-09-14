@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, Leaf, Plus, Minus, Check, Truck, Clock, ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Star, Leaf, Plus, Minus, Check, Truck, Clock, ShieldCheck, Loader2, AlertCircle, ShieldAlert } from 'lucide-react';
 import { productService } from '../services/productService';
 import { useCart } from '../context/CartContext';
+import { useAllergens } from '../hooks/useAllergens';
+import { useAuthGate } from '../context/AuthGate';
 import { useAuth } from '../context/AuthContext';
+import { useT } from '../i18n/useT';
 
 export default function MenuItemDetail() {
+  const { t, L } = useT();
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { addToCart } = useCart();
+  const { check: checkAllergens } = useAllergens();
+  const { requireAuth } = useAuthGate();
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cartError, setCartError] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -26,7 +33,7 @@ export default function MenuItemDetail() {
         const res = await productService.getProductById(id);
         setItem(res.data);
       } catch {
-        setError('Meal not found or error loading product details.');
+        setError(t('mealNotFound'));
       } finally {
         setLoading(false);
       }
@@ -38,7 +45,7 @@ export default function MenuItemDetail() {
     return (
       <div className="min-h-screen bg-bg text-text py-24 text-center">
         <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-3" />
-        <p className="text-xs font-semibold text-text-secondary">Loading meal details...</p>
+        <p className="text-xs font-semibold text-text-secondary">{t('loadingMeal')}</p>
       </div>
     );
   }
@@ -48,39 +55,38 @@ export default function MenuItemDetail() {
       <div className="min-h-screen bg-bg text-text py-20">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
-          <h1 className="text-3xl font-extrabold text-text mb-4">Item Not Found</h1>
+          <h1 className="text-3xl font-extrabold text-text mb-4">{t('itemNotFound')}</h1>
           <p className="text-text-secondary text-sm mb-8">{error || "The meal you're looking for doesn't exist."}</p>
           <Link
             to="/menu"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-light transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Menu
-          </Link>
+            <ArrowLeft className="w-4 h-4" />{t('backToMenu')}</Link>
         </div>
       </div>
     );
   }
 
   const handleAddToCart = async () => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
+    if (!requireAuth(handleAddToCart, { reason: t('authGateCart') })) return;
     setAdding(true);
+    setCartError('');
     try {
       await addToCart(item._id, quantity);
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
-    } catch {
-      // Error handled in cart context
+    } catch (err) {
+      // Shown here rather than left to the cart context, which only records
+      // it in state nothing on this page reads. A failed add that says
+      // nothing looks exactly like a dead button.
+      setCartError(err?.message || t('cartAddFailed'));
     } finally {
       setAdding(false);
     }
   };
 
   const catObj = typeof item.categoryId === 'object' ? item.categoryId : null;
-  const catName = catObj ? catObj.name : 'Healthy Meal';
+  const catName = catObj ? L(catObj.name) : 'Healthy Meal';
   const imgUrl = item.image?.secure_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80';
 
   return (
@@ -92,9 +98,7 @@ export default function MenuItemDetail() {
           onClick={() => navigate(-1)}
           className="inline-flex items-center gap-2 text-sm font-semibold text-text-secondary hover:text-primary transition-colors mb-6"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Menu
-        </button>
+          <ArrowLeft className="w-4 h-4" />{t('backToMenu')}</button>
 
         <div className="grid lg:grid-cols-2 gap-10 items-start">
           
@@ -102,7 +106,7 @@ export default function MenuItemDetail() {
           <div className="relative rounded-2xl overflow-hidden border border-border bg-surface shadow-lg">
             <img
               src={imgUrl}
-              alt={item.name}
+              alt={L(item.name)}
               className="w-full h-[400px] lg:h-[500px] object-cover"
             />
             
@@ -133,18 +137,17 @@ export default function MenuItemDetail() {
                 {catName}
               </span>
               <span className="text-xs text-text-secondary flex items-center gap-1">
-                <Leaf className="w-3.5 h-3.5 text-primary" /> Fresh Daily
-              </span>
+                <Leaf className="w-3.5 h-3.5 text-primary" />{t('freshDaily')}</span>
             </div>
 
             {/* Title */}
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-text">
-              {item.name}
+              {L(item.name)}
             </h1>
 
             {/* Description */}
             <p className="text-text-secondary text-base leading-relaxed">
-              {item.description || 'Prepared fresh daily by our executive chefs using top-tier organic ingredients to keep you energized and healthy.'}
+              {L(item.description) || t('mealFallbackDesc')}
             </p>
 
             {/* Price */}
@@ -156,12 +159,12 @@ export default function MenuItemDetail() {
 
             {/* Quantity selector */}
             <div className="flex items-center gap-4">
-              <span className="text-sm font-semibold text-text">Quantity:</span>
+              <span className="text-sm font-semibold text-text">{t('quantityLabel')}</span>
               <div className="flex items-center gap-3 bg-surface border border-border rounded-xl px-3 py-2">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="w-8 h-8 rounded-lg bg-bg hover:bg-border flex items-center justify-center text-text transition-colors"
-                  aria-label="Decrease quantity"
+                  aria-label={t('decreaseQty')}
                 >
                   <Minus className="w-4 h-4" />
                 </button>
@@ -169,12 +172,33 @@ export default function MenuItemDetail() {
                 <button
                   onClick={() => setQuantity(Math.max(1, Math.min(item.stock, quantity + 1)))}
                   className="w-8 h-8 rounded-lg bg-bg hover:bg-border flex items-center justify-center text-text transition-colors"
-                  aria-label="Increase quantity"
+                  aria-label={t('increaseQty')}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
             </div>
+
+            {(() => {
+              // Said here, next to the price and the button, because this is
+              // where someone decides. Finding out at checkout is finding out
+              // too late.
+              const verdict = checkAllergens(item);
+              if (!verdict.unsafe) return null;
+              return (
+                <p className="flex items-start gap-2 p-4 mb-4 rounded-xl bg-error/10 text-error text-sm font-semibold">
+                  <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" />
+                  <span>{t('mealContainsAllergen', { items: verdict.label })}</span>
+                </p>
+              );
+            })()}
+
+            {cartError && (
+              <p className="flex items-start gap-2 p-3 mb-3 rounded-xl bg-error/10 text-error text-sm">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{cartError}</span>
+              </p>
+            )}
 
             {/* Add to cart button */}
             <button
@@ -192,11 +216,9 @@ export default function MenuItemDetail() {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : added ? (
                 <>
-                  <Check className="w-4 h-4" />
-                  Added to Cart!
-                </>
+                  <Check className="w-4 h-4" />{t('addedToCart')}</>
               ) : item.stock === 0 ? (
-                <span>Out of Stock</span>
+                <span>{t('outOfStock')}</span>
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
@@ -217,7 +239,7 @@ export default function MenuItemDetail() {
               </div>
               <div className="flex flex-col items-center gap-2 bg-surface border border-border rounded-xl p-4 text-center">
                 <Clock className="w-5 h-5 text-primary" />
-                <span className="text-[11px] font-semibold text-text">Fresh Daily</span>
+                <span className="text-[11px] font-semibold text-text">{t('freshDaily')}</span>
               </div>
             </div>
           </div>
