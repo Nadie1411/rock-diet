@@ -48,13 +48,13 @@ export function CartProvider({ children }) {
   const closeCart = () => setIsOpen(false);
   const toggleCart = () => setIsOpen((prev) => !prev);
 
-  const addToCart = async (productId, quantity = 1, addons = []) => {
+  const addToCart = async (productId, quantity = 1, addons = [], packageSlug) => {
     if (!authed.current) {
       throw new Error(t('cartLoginToAdd'));
     }
     try {
       setError('');
-      const res = await cartService.addToCart(productId, quantity, addons);
+      const res = await cartService.addToCart(productId, quantity, addons, packageSlug);
       setCart(res.data?.cart ?? res.data);
       openCart();
       return res;
@@ -121,8 +121,11 @@ export function CartProvider({ children }) {
 
   const items = cart?.items || [];
   const cartItemCount = items.reduce((acc, item) => acc + (item.quantity || 0), 0);
+  // `unitPrice` is what the server will actually charge the line at — the
+  // package rate for a box, the dish's own price otherwise. Falling back to
+  // the product price keeps an older cart shape working.
   const subtotal = items.reduce((acc, item) => {
-    const price = item.productId?.price || 0;
+    const price = item.unitPrice ?? item.productId?.price ?? 0;
     const addonsTotal = (item.selectedAddons || []).reduce(
       (sum, addon) => sum + (addon.price || 0),
       0,

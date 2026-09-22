@@ -107,10 +107,20 @@ function App() {
                   <Route path="/profile/edit" element={<EditProfile />} />
                   {/* Admin lives in the Next.js panel at /admin, served by the
                       web server outside this app — not a client-side route. */}
+                  {/* The order id rides in the path: the gateway appends its own
+                      "?…" to the return URL, which would swallow a query id. The
+                      bare forms stay for older links. */}
+                  <Route path="/payment/success/:orderId" element={<PaymentSuccess />} />
                   <Route path="/payment/success" element={<PaymentSuccess />} />
+                  <Route path="/subscription/success/:orderId" element={<SubscriptionSuccess />} />
                   <Route path="/subscription/success" element={<SubscriptionSuccess />} />
                   <Route path="/payment-methods" element={<PaymentMethods />} />
+                  <Route path="/payment/failure/:orderId" element={<PaymentFailure />} />
                   <Route path="/payment/failure" element={<PaymentFailure />} />
+                  {/* The gateway's other name for the same thing; the page
+                      tells a cancellation from a decline by asking the server. */}
+                  <Route path="/payment/cancel/:orderId" element={<PaymentFailure />} />
+                  <Route path="/payment/cancel" element={<PaymentFailure />} />
                   <Route path="/customer-service" element={<CustomerService />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

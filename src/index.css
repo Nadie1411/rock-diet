@@ -44,6 +44,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* iOS Safari zooms the whole page into any field whose text is smaller than
+   16px the moment it is focused, and does not zoom back out. The fields here
+   are set in 12–14px, so every tap on one lurched the layout. On phone widths
+   they render at 16px instead — the one size that never triggers it. Written
+   outside Tailwind's layers on purpose: an unlayered rule outranks the
+   text-xs / text-sm utilities on the fields without needing !important. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 
 
 @keyframes bounce-slow {

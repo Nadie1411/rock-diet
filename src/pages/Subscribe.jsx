@@ -6,9 +6,10 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   Loader2,
+  Flame,
   ArrowLeft,
   ArrowRight,
   AlertCircle,
@@ -28,6 +29,8 @@ import PromoCodes from '../components/PromoCodes';
 import { caloriesOf } from '../components/MealSheets';
 import { endChangePlan } from '../utils/changePlanIntent';
 import { readDraft, writeDraft, clearDraft } from '../utils/subscribeDraft';
+import { exclusionService } from '../services/exclusionService';
+import { conflictsFor, expandExclusions, labelList } from '../utils/allergens';
 import { productService } from '../services/productService';
 import { categoryService } from '../services/categoryService';
 import { useAuth } from '../context/AuthContext';
@@ -49,7 +52,26 @@ import { useAuthGate } from '../context/AuthGate';
  * figure quoted is the figure charged.
  */
 
-const STEPS = ['Package', 'About you', 'Target', 'Duration', 'Meals', 'Review'];
+const STEPS = ['Package', 'About you', 'Target', 'Duration', 'Allergies', 'Meals', 'Review'];
+
+/**
+ * Steps by name. Allergies sit before the meals on purpose: a dish the
+ * customer cannot eat should be greyed out while they choose, not refused
+ * after they have paid — and the step is skippable in one tap for the many
+ * who have none.
+ */
+const STEP = {
+  PACKAGE: 0,
+  ABOUT: 1,
+  TARGET: 2,
+  DURATION: 3,
+  ALLERGIES: 4,
+  MEALS: 5,
+  REVIEW: 6,
+};
+
+/** The steps as the address bar names them: `/subscribe?step=meals`. */
+const STEP_SLUGS = ['package', 'about', 'target', 'duration', 'allergies', 'meals', 'review'];
 
 /**
  * Whether a category is the one for this course.
@@ -117,12 +139,89 @@ const ACTIVITY = [
 const kd = (n) => `KD ${Number(n || 0).toFixed(3)}`;
 
 export default function Subscribe() {
-  const { t, L } = useT();
+  const { t, L, lang } = useT();
   const { requireAuth } = useAuthGate();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
 
-  const [step, setStep] = useState(0);
+  /**
+   * Where the wizard is open — which step and, on the meals step, which
+   * day — read from the address rather than held here:
+   * `/subscribe?step=meals&day=3`.
+   *
+   * Every move forward is a history entry, so the browser's Back button
+   * retraces the wizard the way the one in the footer does. While the steps
+   * were state, both buttons said Back and only one of them meant it: the
+   * browser's left the page, and six steps of choices with it. It also means
+   * a reload opens the same step, and the same day of the week.
+   */
+  const step = Math.max(0, STEP_SLUGS.indexOf(searchParams.get('step')));
+  const activeDay = Math.min(Math.max(Number(searchParams.get('day')) || 1, 1), 7);
+
+  /**
+   * Opens a position. Pushed, so Back returns here — except when replacing
+   * the entry the customer arrived on, which the draft restore does.
+   *
+   * The entry records the position it was opened from. That is how the
+   * footer's Back knows whether the entry behind this one belongs to the
+   * wizard, and can retrace it instead of opening a new one; nothing is
+   * known about what is behind a replaced entry.
+   *
+   * Only the step and the day travel: `?package=` from the packages page is
+   * dropped on the first move, since it re-chooses that package on every
+   * reload and would have undone a change of mind.
+   */
+  const goTo = useCallback(
+    ({ step: nextStep, day = 1 }, { replace = false } = {}) => {
+      const params = new URLSearchParams();
+      if (nextStep > STEP.PACKAGE) params.set('step', STEP_SLUGS[nextStep]);
+      if (nextStep === STEP.MEALS && day > 1) params.set('day', String(day));
+      const search = params.toString();
+      navigate(
+        { pathname: location.pathname, search: search ? `?${search}` : '' },
+        { replace, state: { from: replace ? null : { step, day: activeDay } } },
+      );
+    },
+    [navigate, location.pathname, step, activeDay],
+  );
+
+  /**
+   * The footer's Back: one position back — the day before on the meals
+   * step, the step before elsewhere.
+   *
+   * When that is exactly what sits behind this entry, which it is whenever
+   * the customer got here with Continue, the history is retraced — the very
+   * move the browser's own button makes, so the two never disagree and the
+   * browser's Back never lands on a step the footer's just left. When it is
+   * not — a position reached from a restored draft, a link, or a jump along
+   * the row of days — the previous one is opened afresh.
+   */
+  const goBack = () => {
+    const from = location.state?.from;
+    const behindIsPrevious =
+      from &&
+      (from.step === step - 1 ||
+        (from.step === step && step === STEP.MEALS && from.day === activeDay - 1));
+    if (behindIsPrevious) {
+      navigate(-1);
+      return;
+    }
+    if (step === STEP.MEALS && activeDay > 1) goTo({ step, day: activeDay - 1 });
+    else goTo({ step: step - 1, day: step - 1 === STEP.MEALS ? DAY_KEYS.length : 1 });
+  };
+
+  // Each step is its own screen, but the whole wizard is one route, and the
+  // router only scrolls to the top when the path changes. Without this a
+  // customer who scrolled down a long step to reach Continue — the package
+  // list is the usual one — opened the next step that far down, at the
+  // buttons rather than its heading. Back is covered by the same effect, and
+  // so is the next day of the week, whose menu starts at the top again.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step, activeDay]);
+
   const [packages, setPackages] = useState([]);
   const [calorieConfig, setCalorieConfig] = useState(DEFAULT_CALORIE_CONFIG);
   const [loading, setLoading] = useState(true);
@@ -203,7 +302,32 @@ export default function Subscribe() {
    */
   const [categories, setCategories] = useState([]);
   const [dayMeals, setDayMeals] = useState({});
-  const [activeDay, setActiveDay] = useState(1);
+
+  /**
+   * What the kitchen must keep out, as ingredient or group ids.
+   *
+   * Asked before the meals, so the unsafe ones are greyed out while
+   * choosing. A guest's answer lives in the draft until they sign in to pay,
+   * when it is merged into their account's list; a signed-in customer sees
+   * their existing list here and whatever they leave ticked is saved as-is.
+   */
+  const [allergies, setAllergies] = useState([]);
+  const [allergyCatalog, setAllergyCatalog] = useState([]);
+  // The account's lists as last read from the server, or null for a guest.
+  const [serverExclusions, setServerExclusions] = useState(null);
+  // 'exact' once a signed-in customer has seen the step (their ticks are
+  // the whole list); 'merge' for a guest's ticks, which join the account's.
+  const [allergyMode, setAllergyMode] = useState('merge');
+  const [allergySaving, setAllergySaving] = useState(false);
+  /** Which course the meals step is showing; 'all' for the whole day. */
+  const [slotFilter, setSlotFilter] = useState('all');
+
+  // Every day opens on the whole menu. The course was picked to find one
+  // day's snack, not as a preference — and Friday opening on "snack" alone
+  // looked like a menu with two dishes on it.
+  useEffect(() => {
+    setSlotFilter('all');
+  }, [activeDay]);
 
   // Monday, for the pieces that only ever spoke about a day: the saved draft
   // and the line on the review screen.
@@ -242,10 +366,26 @@ export default function Subscribe() {
       // A draft written before the wizard could offer more than one day.
       setDayMeals({ 1: d.firstDayProductIds });
     }
-    if (typeof d.step === 'number') setStep(d.step);
+    if (Array.isArray(d.allergies)) setAllergies(d.allergies.map(String));
     if (d.profile) setProfile((prev) => ({ ...prev, ...d.profile }));
     if (d.goal) setGoal(d.goal);
     if (d.slug) setPendingSlug(d.slug);
+
+    // The step too, unless the address already names one — a reload does —
+    // or names a package, which is the packages page sending someone to
+    // start again with that one chosen.
+    if (
+      typeof d.step === 'number' &&
+      !searchParams.get('step') &&
+      !searchParams.get('package')
+    ) {
+      goTo(
+        { step: Math.min(Math.max(d.step, 0), STEPS.length - 1) },
+        { replace: true },
+      );
+    }
+    // Runs once, on arrival: what the address said then is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The package object arrives with the list, so the slug is remembered and
@@ -257,6 +397,15 @@ export default function Subscribe() {
     if (found) setPkg(found);
     setPendingSlug(null);
   }, [pendingSlug, pkg, packages]);
+
+  // A later step reached by address alone — a bookmark, a shared link, a
+  // draft whose package has since been withdrawn — has nothing to show
+  // without a package. Start at the beginning.
+  useEffect(() => {
+    if (loading || pkg || step === STEP.PACKAGE) return;
+    if (pendingSlug && packages.some((x) => x.slug === pendingSlug)) return;
+    goTo({ step: STEP.PACKAGE }, { replace: true });
+  }, [loading, pkg, step, pendingSlug, packages, goTo]);
 
   useEffect(() => {
     if (!pkg) return;
@@ -273,8 +422,108 @@ export default function Subscribe() {
       step,
       profile,
       goal,
+      allergies,
     });
-  }, [pkg, duration, protein, carbs, slots, dayMeals, step, profile, goal]);
+  }, [pkg, duration, protein, carbs, slots, dayMeals, step, profile, goal, allergies]);
+
+  // The allergen catalogue is public and shared; the account's own lists are
+  // read once signed in, and prefill the step so nobody re-ticks what they
+  // told us last month.
+  useEffect(() => {
+    exclusionService
+      .getCatalog()
+      .then((res) => setAllergyCatalog(res.data || []))
+      .catch(() => setAllergyCatalog([]));
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setServerExclusions(null);
+      return;
+    }
+    exclusionService
+      .getMine()
+      .then((res) => {
+        const mine = {
+          forbidden: (res.data?.forbidden || []).map(String),
+          disliked: (res.data?.disliked || []).map(String),
+          notes: res.data?.notes || '',
+        };
+        setServerExclusions(mine);
+        // Their list is the starting point unless they already ticked
+        // something as a guest, which is kept and merged on save.
+        setAllergies((current) =>
+          current.length ? current : mine.forbidden,
+        );
+      })
+      .catch(() => setServerExclusions({ forbidden: [], disliked: [], notes: '' }));
+  }, [isAuthenticated]);
+
+  /**
+   * Writes the ticked allergies to the account.
+   *
+   * Exact for a signed-in customer who has seen the step: what is ticked is
+   * their list. Merged for a guest's ticks arriving at sign-in: nothing on
+   * the account is un-ticked by a form they filled in before they had one.
+   * Dislikes and notes are carried across untouched.
+   */
+  const saveAllergies = useCallback(async (list = allergies, mode = allergyMode) => {
+    if (!isAuthenticated) return;
+    let mine = serverExclusions;
+    if (!mine) {
+      const res = await exclusionService.getMine();
+      mine = {
+        forbidden: (res.data?.forbidden || []).map(String),
+        disliked: (res.data?.disliked || []).map(String),
+        notes: res.data?.notes || '',
+      };
+    }
+    const forbidden =
+      mode === 'exact'
+        ? [...new Set(list)]
+        : [...new Set([...mine.forbidden, ...list])];
+    const same =
+      forbidden.length === mine.forbidden.length &&
+      forbidden.every((id) => mine.forbidden.includes(id));
+    if (same) return;
+    await exclusionService.setMine({
+      forbidden,
+      // A group ticked as an allergy cannot also be a dislike.
+      disliked: mine.disliked.filter((id) => !forbidden.includes(id)),
+      notes: mine.notes,
+    });
+    setServerExclusions({ ...mine, forbidden });
+  }, [isAuthenticated, serverExclusions, allergyMode, allergies]);
+
+  const toggleAllergy = (id) => {
+    if (isAuthenticated) setAllergyMode('exact');
+    setAllergies((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+    );
+  };
+
+  /** Leaves the allergies step. Saves first when there is an account to save to. */
+  const leaveAllergies = async ({ skip = false } = {}) => {
+    setError('');
+    const list = skip ? [] : allergies;
+    const mode = skip && isAuthenticated ? 'exact' : allergyMode;
+    if (skip) {
+      setAllergies([]);
+      if (isAuthenticated) setAllergyMode('exact');
+    }
+    if (isAuthenticated) {
+      setAllergySaving(true);
+      try {
+        await saveAllergies(list, mode);
+      } catch (err) {
+        setError(err?.message || t('restrictionsSaveFailed'));
+        setAllergySaving(false);
+        return;
+      }
+      setAllergySaving(false);
+    }
+    goTo({ step: STEP.MEALS });
+  };
 
   // What the server says about it.
   const [preview, setPreview] = useState(null);
@@ -284,6 +533,42 @@ export default function Subscribe() {
   const [submitting, setSubmitting] = useState(false);
 
   const [products, setProducts] = useState([]);
+
+  /** Every ingredient id the ticked allergies cover, groups expanded. */
+  const excludedSet = useMemo(
+    () => expandExclusions(allergies, allergyCatalog),
+    [allergies, allergyCatalog],
+  );
+
+  /**
+   * A dish that contains something ticked. The server refuses it at
+   * checkout regardless; greying it out here is so the refusal never comes
+   * after the money.
+   */
+  const unsafeHits = useCallback(
+    (product) => conflictsFor(product, excludedSet).hits,
+    [excludedSet],
+  );
+
+  // Drop any dish already chosen that a newly ticked allergy rules out.
+  useEffect(() => {
+    if (!excludedSet.size || !products.length) return;
+    const byId = new Map(products.map((p) => [p._id, p]));
+    setDayMeals((current) => {
+      let changed = false;
+      const next = {};
+      for (const [day, ids] of Object.entries(current)) {
+        const kept = (ids || []).filter((id) => {
+          const product = byId.get(id);
+          return !product || !conflictsFor(product, excludedSet).hits.length;
+        });
+        if (kept.length !== (ids || []).length) changed = true;
+        next[day] = kept;
+      }
+      return changed ? next : current;
+    });
+  }, [excludedSet, products]);
+
 
   // Signing in is required to buy. Sent to login rather than allowed to build
   // a plan that cannot be paid for at the end.
@@ -446,7 +731,7 @@ export default function Subscribe() {
   // Categories come with it: they are what sorts the menu into breakfast,
   // lunch, dinner and snack, and without them the step is one long grid.
   useEffect(() => {
-    if (step !== 4 || products.length) return;
+    if (step !== STEP.MEALS || products.length) return;
     productService
       .getAllProducts()
       .then((res) => setProducts(res.data || []))
@@ -466,7 +751,7 @@ export default function Subscribe() {
 
   // Price the term on the review step, from the server.
   useEffect(() => {
-    if (step !== 5 || !pkg) return;
+    if (step !== STEP.REVIEW || !pkg) return;
     setQuoting(true);
     setError('');
     subscriptionService
@@ -534,6 +819,22 @@ export default function Subscribe() {
   const activeIds = dayIds(activeDay);
 
   /**
+   * Whether the footer should offer the next day rather than the review.
+   *
+   * The way to Tuesday used to sit under the whole of Monday's menu, a long
+   * scroll below the pinned bar that already held a Continue — so the bar's
+   * button walks the week instead, and only reads Continue once there is no
+   * day left to fill: on the last day, or sooner when every day already
+   * holds all the dishes the package allows and someone has just come back
+   * to change one. Days stay optional; nobody is made to fill Sunday.
+   */
+  const weekDone = useMemo(
+    () => mealLimit > 0 && DAY_KEYS.every((_, i) => dayIds(i + 1).length >= mealLimit),
+    [mealLimit, dayIds],
+  );
+  const moreDays = step === STEP.MEALS && activeDay < DAY_KEYS.length && !weekDone;
+
+  /**
    * How many of each course this package buys, per day.
    *
    * Straight off the wizard's own slot settings, so "1 breakfast, 1 lunch,
@@ -580,6 +881,11 @@ export default function Subscribe() {
     return offeredProducts.filter((p) => !grouped.has(p._id));
   }, [offeredProducts, slotGroups]);
 
+  // A course filter that the package does not offer falls back to the day.
+  const effectiveSlotFilter = slotGroups.some((g) => g.slot === slotFilter)
+    ? slotFilter
+    : 'all';
+
   /** How many of this course are already chosen for the day on screen. */
   const chosenInSlot = useCallback(
     (group) => group.items.filter((p) => activeIds.includes(p._id)).length,
@@ -615,11 +921,21 @@ export default function Subscribe() {
           return { ...prev, [activeDay]: ids.filter((x) => x !== product._id) };
         }
 
-        // Full for this course, or full for the day.
         if (group) {
-          const inSlot = group.items.filter((p) => ids.includes(p._id)).length;
-          if (inSlot >= group.allowance) return prev;
+          // A full course swaps: the dish chosen earliest makes way for this
+          // one, in its place. Changing a breakfast used to take two taps —
+          // one to un-choose it, one to choose the other — with every other
+          // dish greyed out in between, which read as a menu you could not
+          // order from.
+          const inSlot = ids.filter((id) => group.items.some((p) => p._id === id));
+          if (inSlot.length >= group.allowance) {
+            return {
+              ...prev,
+              [activeDay]: ids.map((id) => (id === inSlot[0] ? product._id : id)),
+            };
+          }
         } else if (mealLimit && ids.length >= mealLimit) {
+          // Full for the day, with no course of its own to swap within.
           return prev;
         }
 
@@ -700,6 +1016,12 @@ export default function Subscribe() {
     setError('');
     setAllergyPrompt('');
     try {
+      // A guest's ticks reach the account here, at the first moment there
+      // is one. The server checks the week against the account's list, so
+      // this has to land before the checkout does.
+      if (allergies.length || allergyMode === 'exact') {
+        await saveAllergies();
+      }
       const res = await subscriptionService.checkout({
         slug: pkg.slug,
         duration,
@@ -764,8 +1086,8 @@ export default function Subscribe() {
   };
 
   const canAdvance = () => {
-    if (step === 0) return Boolean(pkg) && Boolean(preview);
-    if (step === 1) {
+    if (step === STEP.PACKAGE) return Boolean(pkg) && Boolean(preview);
+    if (step === STEP.ABOUT) {
       return ['age', 'weight', 'height'].every((k) => Number(profile[k]) > 0);
     }
     return true;
@@ -818,7 +1140,7 @@ export default function Subscribe() {
         )}
 
         {/* ---- Step 1: package + portions ---- */}
-        {step === 0 && (
+        {step === STEP.PACKAGE && (
           <section>
             <h1 className="text-2xl font-extrabold mb-1">{t('chooseYourPackage')}</h1>
             <p className="text-text-secondary text-sm mb-5">{t('packageIntro')}</p>
@@ -982,7 +1304,7 @@ export default function Subscribe() {
         )}
 
         {/* ---- Step 2: about you ---- */}
-        {step === 1 && (
+        {step === STEP.ABOUT && (
           <section>
             <h1 className="text-2xl font-extrabold mb-1">{t('wizardAboutTitle')}</h1>
             <p className="text-text-secondary text-sm mb-5">{t('subscribeMeasuresNote')}</p>
@@ -1063,7 +1385,7 @@ export default function Subscribe() {
         )}
 
         {/* ---- Step 3: target ---- */}
-        {step === 2 && (
+        {step === STEP.TARGET && (
           <section>
             <h1 className="text-2xl font-extrabold mb-1">{t('calorieCalculated')}</h1>
             <p className="text-text-secondary text-sm mb-5">{t('targetExplain')}</p>
@@ -1109,7 +1431,7 @@ export default function Subscribe() {
         )}
 
         {/* ---- Step 4: duration ---- */}
-        {step === 3 && (
+        {step === STEP.DURATION && (
           <section>
             <h1 className="text-2xl font-extrabold mb-1">{t('wizardDurationTitle')}</h1>
             <p className="text-text-secondary text-sm mb-5">{t('durationIntro')}</p>
@@ -1161,39 +1483,179 @@ export default function Subscribe() {
           </section>
         )}
 
-        {/* ---- Step 5: the week's meals, one day at a time ---- */}
-        {step === 4 && (
+        {/* ---- Step 5: allergies, before any dish is chosen ---- */}
+        {step === STEP.ALLERGIES && (
           <section>
-            <h1 className="text-2xl font-extrabold mb-1">{t(DAY_KEYS[activeDay - 1])}</h1>
-            <p className="text-text-secondary text-sm mb-4">
-              {t('dayOfWeekProgress', { n: activeDay, total: 7 })} ·{' '}
-              {t('subscribePickWeek')}
-            </p>
+            <h1 className="text-2xl font-extrabold mb-1">{t('wizardAllergiesTitle')}</h1>
+            <p className="text-text-secondary text-sm mb-4">{t('wizardAllergiesBody')}</p>
 
-            {/* The week at a glance. The flow is Next, day after day, but a
-                day already done should be one tap away, not seven. */}
-            <div className="flex gap-1.5 overflow-x-auto pb-2 mb-5">
-              {DAY_KEYS.map((key, i) => {
-                const day = i + 1;
-                const count = dayIds(day).length;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setActiveDay(day)}
-                    className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
-                      day === activeDay
-                        ? 'bg-primary text-on-primary border-primary'
-                        : 'bg-surface border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {t(key)}
-                    {count > 0 && (
-                      <span className="ms-1.5 tabular-nums opacity-80">{count}</span>
-                    )}
-                  </button>
-                );
-              })}
+            {/* The way out for the many who have none: one tap, nothing
+                saved, straight to the meals. Hidden once something is
+                ticked, because "none" and a ticked list contradict. */}
+            {allergies.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => leaveAllergies({ skip: true })}
+                disabled={allergySaving}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 mb-5 rounded-xl border-2 border-dashed border-primary/40 text-primary text-sm font-bold hover:bg-primary/5 transition-colors disabled:opacity-50"
+              >
+                {t('wizardAllergiesSkip')}
+                <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+              </button>
+            ) : (
+              <div className="flex items-center justify-between gap-3 mb-5 px-4 py-3 rounded-xl bg-error/10 text-error text-sm">
+                <span className="font-semibold">
+                  {t('wizardAllergiesTicked', { n: allergies.length })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isAuthenticated) setAllergyMode('exact');
+                    setAllergies([]);
+                  }}
+                  className="text-xs font-bold underline underline-offset-2 shrink-0"
+                >
+                  {t('wizardAllergiesClear')}
+                </button>
+              </div>
+            )}
+
+            {!allergyCatalog.length ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allergyCatalog.map((group) => {
+                  const groupOn = allergies.includes(group.id);
+                  const items = group.items || [];
+                  return (
+                    <div
+                      key={group.id}
+                      className={`rounded-2xl border p-3 transition-colors ${
+                        groupOn ? 'border-error/40 bg-error/5' : 'border-border bg-surface'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleAllergy(group.id)}
+                        aria-pressed={groupOn}
+                        className="w-full flex items-center justify-between gap-3 text-start"
+                      >
+                        <span className="text-sm font-extrabold">{lang === 'ar' ? group.ar : group.en}</span>
+                        <span
+                          className={`shrink-0 px-2.5 py-1 rounded-lg border text-[11px] font-bold ${
+                            groupOn
+                              ? 'border-error bg-error text-white'
+                              : 'border-border text-text-secondary'
+                          }`}
+                        >
+                          {groupOn ? t('cantEatAny') : t('wizardAllergiesAllOf')}
+                        </span>
+                      </button>
+                      {items.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2.5">
+                          {items.map((item) => {
+                            // A whole group ticked covers every item in it.
+                            const on = groupOn || allergies.includes(item.id);
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                disabled={groupOn}
+                                aria-pressed={on}
+                                onClick={() => toggleAllergy(item.id)}
+                                className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
+                                  on
+                                    ? 'border-error bg-error/10 text-error'
+                                    : 'border-border text-text-secondary hover:border-error/40'
+                                }`}
+                              >
+                                {lang === 'ar' ? item.ar : item.en}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="text-xs text-text-secondary mt-4 text-center">
+              {t('wizardAllergiesNote')}
+            </p>
+          </section>
+        )}
+
+        {/* ---- Step 6: the week's meals, one day at a time ---- */}
+        {step === STEP.MEALS && (
+          <section>
+            {/* Pinned under the navbar (h-16). The day's menu is long, and
+                which day this is — and the way to any other day — should stay
+                in view however far down it the customer has scrolled. The
+                negative margins let the background cover the section's own
+                gutters, so nothing shows through at the edges. */}
+            <div className="sticky top-16 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-2 pb-1 mb-5 bg-bg border-b border-border/60">
+              <h1 className="text-2xl font-extrabold mb-1">{t(DAY_KEYS[activeDay - 1])}</h1>
+              <p className="text-text-secondary text-sm mb-3">
+                {t('dayOfWeekProgress', { n: activeDay, total: 7 })} ·{' '}
+                {t('subscribePickWeek')}
+              </p>
+
+              {/* The week at a glance. The flow is Next, day after day, but a
+                  day already done should be one tap away, not seven. */}
+              <div className="flex gap-1.5 overflow-x-auto pb-2">
+                {DAY_KEYS.map((key, i) => {
+                  const day = i + 1;
+                  const count = dayIds(day).length;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => goTo({ step, day })}
+                      className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                        day === activeDay
+                          ? 'bg-primary text-on-primary border-primary'
+                          : 'bg-surface border-border hover:border-primary/50'
+                      }`}
+                    >
+                      {t(key)}
+                      {count > 0 && (
+                        <span className="ms-1.5 tabular-nums opacity-80">{count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* One course at a time, for a menu long enough that breakfast
+                  and dinner are a long scroll apart. "All" is the whole day. */}
+              {slotGroups.length > 1 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-2 pt-1">
+                  {[{ key: 'all', label: t('commonAll') }, ...slotGroups.map((g) => ({ key: g.slot, label: t(SLOT_LABELS[g.slot]) }))].map(
+                    (option) => {
+                      const on = effectiveSlotFilter === option.key;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setSlotFilter(option.key)}
+                          aria-pressed={on}
+                          className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                            on
+                              ? 'bg-text text-surface border-text'
+                              : 'bg-surface border-border text-text-secondary hover:border-primary/50'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              )}
             </div>
 
             {!offeredProducts.length ? (
@@ -1202,7 +1664,9 @@ export default function Subscribe() {
               </div>
             ) : (
               <div className="space-y-7">
-                {slotGroups.map((group) => {
+                {slotGroups
+                  .filter((group) => effectiveSlotFilter === 'all' || group.slot === effectiveSlotFilter)
+                  .map((group) => {
                   const taken = chosenInSlot(group);
                   const full = taken >= group.allowance;
 
@@ -1213,6 +1677,9 @@ export default function Subscribe() {
                           {t(SLOT_LABELS[group.slot])}
                         </h2>
                         <span
+                          // Chosen, then allowed, in Arabic too: bidi
+                          // rendered "0 / 1" as "1 / 0".
+                          dir="ltr"
                           className={`text-[11px] font-bold tabular-nums ${
                             full ? 'text-success' : 'text-text-secondary'
                           }`}
@@ -1223,17 +1690,24 @@ export default function Subscribe() {
 
                       {group.items.length ? (
                         <div className="grid grid-cols-2 gap-3">
-                          {group.items.map((p) => (
-                            <MealCard
-                              key={p._id}
-                              product={p}
-                              chosen={activeIds.includes(p._id)}
-                              blocked={full && !activeIds.includes(p._id)}
-                              onToggle={() => toggleMeal(p, group)}
-                              t={t}
-                              L={L}
-                            />
-                          ))}
+                          {group.items.map((p) => {
+                            const hits = unsafeHits(p);
+                            const unsafe = hits.length ? labelList(hits, allergyCatalog, lang) : null;
+                            // A full course leaves the other dishes open: a
+                            // tap swaps one in for the earliest chosen.
+                            return (
+                              <MealCard
+                                key={p._id}
+                                product={p}
+                                chosen={activeIds.includes(p._id)}
+                                blocked={Boolean(unsafe)}
+                                unsafe={unsafe}
+                                onToggle={() => toggleMeal(p, group)}
+                                t={t}
+                                L={L}
+                              />
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-xs text-text-secondary">
@@ -1247,56 +1721,49 @@ export default function Subscribe() {
                 {/* Anything the menu offers that is not one of this plan's
                     courses. Shown last rather than dropped, so a dish never
                     silently disappears because its category is unexpected. */}
-                {ungrouped.length > 0 && (
+                {ungrouped.length > 0 && effectiveSlotFilter === 'all' && (
                   <div>
                     <h2 className="text-sm font-extrabold mb-2.5">{t('slotOther')}</h2>
                     <div className="grid grid-cols-2 gap-3">
-                      {ungrouped.map((p) => (
-                        <MealCard
-                          key={p._id}
-                          product={p}
-                          chosen={activeIds.includes(p._id)}
-                          blocked={
-                            !activeIds.includes(p._id) &&
-                            Boolean(mealLimit) &&
-                            activeIds.length >= mealLimit
-                          }
-                          onToggle={() => toggleMeal(p, null)}
-                          t={t}
-                          L={L}
-                        />
-                      ))}
+                      {ungrouped.map((p) => {
+                        const hits = unsafeHits(p);
+                        const unsafe = hits.length ? labelList(hits, allergyCatalog, lang) : null;
+                        return (
+                          <MealCard
+                            key={p._id}
+                            product={p}
+                            chosen={activeIds.includes(p._id)}
+                            blocked={
+                              Boolean(unsafe) ||
+                              (!activeIds.includes(p._id) &&
+                                Boolean(mealLimit) &&
+                                activeIds.length >= mealLimit)
+                            }
+                            unsafe={unsafe}
+                            onToggle={() => toggleMeal(p, null)}
+                            t={t}
+                            L={L}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 )}
               </div>
             )}
 
+            {/* The way to the next day is the bar's button, which is in
+                view wherever the customer is on the page. */}
             <p className="text-xs text-text-secondary mt-5 text-center">
               {mealLimit
                 ? t('mealsChosenOfLimit', { n: activeIds.length, limit: mealLimit })
                 : t('mealsChosenOptional', { n: activeIds.length })}
             </p>
-
-            {/* On to the next day rather than back up to the row of chips. */}
-            {activeDay < 7 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveDay((d) => d + 1);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="mt-4 w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary-light text-on-primary text-sm font-bold transition-colors"
-              >
-                {t('dayNext', { day: t(DAY_KEYS[activeDay]) })}
-                <ArrowRight className="w-4 h-4 rtl:rotate-180" />
-              </button>
-            )}
           </section>
         )}
 
         {/* ---- Step 6: review ---- */}
-        {step === 5 && (
+        {step === STEP.REVIEW && (
           <section>
             <h1 className="text-2xl font-extrabold mb-1">{t('reviewAndPay')}</h1>
             <p className="text-text-secondary text-sm mb-5">{t('nothingCookedUntilPaid')}</p>
@@ -1505,20 +1972,28 @@ export default function Subscribe() {
           {step > 0 && (
             <button
               type="button"
-              onClick={() => setStep((s) => s - 1)}
+              onClick={goBack}
               disabled={submitting}
               className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-border text-sm font-bold hover:border-primary transition-colors disabled:opacity-50"
             >
-              <ArrowLeft className="w-4 h-4" />{t('commonBack')}</button>
+              <ArrowLeft className="w-4 h-4 rtl:rotate-180" />{t('commonBack')}</button>
           )}
 
           {step < STEPS.length - 1 ? (
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!canAdvance()}
+              onClick={() => {
+                if (step === STEP.ALLERGIES) leaveAllergies();
+                else if (moreDays) goTo({ step, day: activeDay + 1 });
+                else goTo({ step: step + 1 });
+              }}
+              disabled={!canAdvance() || allergySaving}
               className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary-light text-on-primary text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >{t('commonContinue')}<ArrowRight className="w-4 h-4" />
+            >
+              {moreDays
+                ? t('dayNext', { day: t(DAY_KEYS[activeDay]) })
+                : t('commonContinue')}
+              <ArrowRight className="w-4 h-4 rtl:rotate-180" />
             </button>
           ) : (
             <button
@@ -1559,7 +2034,7 @@ export default function Subscribe() {
  * name. `blocked` is a course already full — refusing the tap and saying so
  * by going pale, rather than silently doing nothing.
  */
-function MealCard({ product, chosen, blocked, onToggle, t, L }) {
+function MealCard({ product, chosen, blocked, unsafe = null, onToggle, t, L }) {
   return (
     <button
       type="button"
@@ -1568,6 +2043,8 @@ function MealCard({ product, chosen, blocked, onToggle, t, L }) {
       className={`text-left rounded-2xl border overflow-hidden transition-all ${
         chosen
           ? 'border-primary ring-1 ring-primary/20'
+          : unsafe
+          ? 'border-error/40 opacity-60 cursor-not-allowed'
           : blocked
           ? 'border-border opacity-45 cursor-not-allowed'
           : 'border-border hover:border-primary/40'
@@ -1583,16 +2060,31 @@ function MealCard({ product, chosen, blocked, onToggle, t, L }) {
       <div className="p-3 bg-surface">
         <p className="text-xs font-bold truncate">{L(product.name)}</p>
 
-        <p className="text-[10px] font-bold text-primary mt-1">
-          {t('mealCalories', { count: caloriesOf(product) })}
+        {/* The number and a flame: "kcal" spelt out took the room the
+            dish's name needed, and the icon says it in both languages. */}
+        <p
+          className="inline-flex items-center gap-1 text-[10px] font-bold text-primary mt-1 tabular-nums"
+          title={t('mealCaloriesLabel')}
+        >
+          <Flame className="w-3 h-3" aria-hidden="true" />
+          <span className="sr-only">{t('mealCaloriesLabel')} </span>
+          {caloriesOf(product)}
         </p>
-        <p className="text-[10px] text-text-secondary mt-0.5 tabular-nums">
-          <span className="text-protein">{product.protein || 0}g</span>
+        {/* Each macro carries its letter — three bare numbers in a row read
+            as nothing in particular. */}
+        <p className="text-[10px] text-text-secondary mt-0.5 tabular-nums" dir="ltr">
+          <span className="text-protein">{product.protein || 0} P</span>
           {' · '}
-          <span className="text-carbs">{product.carbs || 0}g</span>
+          <span className="text-carbs">{product.carbs || 0} C</span>
           {' · '}
-          <span className="text-fat">{product.fats || 0}g</span>
+          <span className="text-fat">{product.fats || 0} F</span>
         </p>
+
+        {unsafe && (
+          <p className="mt-1.5 text-[10px] font-bold text-error leading-snug">
+            {t('mealContains', { list: unsafe })}
+          </p>
+        )}
 
         {chosen && (
           <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold text-primary">

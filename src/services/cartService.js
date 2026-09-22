@@ -7,10 +7,18 @@ export const cartService = {
   // empty array was enough to fail every add with `"addons" is not allowed` —
   // a 400 on the one action the whole shop depends on. `updateCartItem` below
   // already sent it conditionally; this one did not.
-  addToCart: (productId, quantity = 1, addons = []) =>
+  // `packageSlug` marks a line as a day of a package — the daily box — so
+  // the server prices it at the package's per-meal rate rather than the
+  // dish's own price.
+  addToCart: (productId, quantity = 1, addons = [], packageSlug) =>
     api.post(
       'cart',
-      { productId, quantity, ...(addons?.length ? { addons } : {}) },
+      {
+        productId,
+        quantity,
+        ...(addons?.length ? { addons } : {}),
+        ...(packageSlug ? { packageSlug } : {}),
+      },
       { auth: true },
     ),
   addOfferToCart: (offerId) =>

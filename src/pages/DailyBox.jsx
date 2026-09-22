@@ -112,6 +112,10 @@ export default function DailyBox() {
       const options = products.filter((p) => {
         const pc = typeof p.categoryId === 'string' ? p.categoryId : p.categoryId?._id;
         if (catId && pc !== catId) return false;
+        // Nothing the kitchen has run out of: the box would offer it, the
+        // basket would refuse it, and the customer would be told
+        // "insufficient stock" about a dish they never asked for.
+        if (!(Number(p.stock) > 0)) return false;
         // Never seed a plate the customer has said they can't eat.
         //
         // Matched on ingredient ids with groups expanded. The substring test
@@ -138,10 +142,18 @@ export default function DailyBox() {
     return m;
   }, [products]);
 
-  const total = picked.reduce(
-    (sum, id) => sum + Number(productById.get(id)?.price || 0),
-    0,
-  );
+  /**
+   * A box is a day of the package, and the package prices it: its per-meal
+   * rate times the meals in the box. The dishes' own prices are the
+   * à-la-carte figures and do not apply here — summing them charged nothing
+   * for the imported menu and nearly double the package rate for the demo
+   * dishes, and never matched what the package advertises. The server prices
+   * the same way when the order is placed, so this is what will be charged.
+   */
+  const perMeal = Number(pkg?.pricePerMeal ?? 0);
+  const total = perMeal
+    ? perMeal * picked.length
+    : picked.reduce((sum, id) => sum + Number(productById.get(id)?.price || 0), 0);
 
   /** After 16:00 the kitchen has already loaded the vans for today. */
   const shipsTomorrow = new Date().getHours() >= SAME_DAY_CUTOFF_HOUR;
@@ -151,8 +163,10 @@ export default function DailyBox() {
     setAdding(true);
     setError('');
     try {
+      // Under the package, so the basket and the order price each meal at
+      // the package's rate rather than the dish's own.
       for (const id of picked) {
-        await addToCart(id, 1);
+        await addToCart(id, 1, [], pkg?.slug);
       }
       openCart();
     } catch (err) {
@@ -249,7 +263,7 @@ export default function DailyBox() {
                   </span>
                 </button>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-bold">{kd(p.price)}</span>
+                  <span className="text-sm font-bold">{kd(perMeal || p.price)}</span>
                   <button
                     type="button"
                     onClick={() =>

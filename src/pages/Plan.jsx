@@ -32,7 +32,15 @@ import SignInPrompt from '../components/SignInPrompt';
  * is how someone loses a week of food by pressing the wrong thing.
  */
 export default function Plan() {
-  const { t, L } = useT();
+  const { t, L, lang } = useT();
+
+  /** The API's duration value ("1 month"), in the reader's language. */
+  const DURATION_KEYS = {
+    '1 month': 'duration1Month',
+    '3 months': 'duration3Months',
+    '6 months': 'duration6Months',
+    '12 months': 'duration12Months',
+  };
   const navigate = useNavigate();
   const { isAuthenticated, user, loading: authLoading, refreshProfile } = useAuth();
 
@@ -117,6 +125,12 @@ export default function Plan() {
       setWorking(false);
     }
   };
+
+  const durationLabel = status?.duration
+    ? DURATION_KEYS[status.duration]
+      ? t(DURATION_KEYS[status.duration])
+      : status.duration
+    : '';
 
   // Session first. Only once we know they are a guest can the ask be
   // shown - and it must come before any data gate, because the data these
@@ -212,24 +226,37 @@ export default function Plan() {
             <Metric
               Icon={Utensils}
               value={mealsPerDay ?? '—'}
-              label="meals a day"
+              label={t('planMetricMeals')}
             />
             <Metric
               Icon={Flame}
               value={pkg ? approximateDailyCalories(pkg).toLocaleString() : '—'}
-              label="kcal a day"
+              label={t('planMetricKcal')}
             />
             <Metric
               Icon={CalendarDays}
               value={daysLeft ?? '—'}
-              label="days left"
+              label={t('planMetricDays')}
             />
           </div>
 
           {status.subscriptionEnd && (
+            // The duration is the API's own value ("1 month"), so it goes
+            // through its label key. Printed raw inside an Arabic paragraph,
+            // the bidi algorithm carried its leading "1" to the far end of the
+            // line: "month · runs until 08/10/2026 1".
             <p className="text-xs text-white/70 mt-5">
-              {status.duration ? `${status.duration} · ` : ''}runs until{' '}
-              {new Date(status.subscriptionEnd).toLocaleDateString()}
+              {durationLabel ? `${durationLabel} · ` : ''}
+              {t('runsUntil', {
+                // Written out — "٢٦ أكتوبر ٢٠٢٦" / "26 October 2026" — so the
+                // Arabic page shows an Arabic date, not a US-style number.
+                // Arabic-Indic digits to match the rest of the Arabic copy
+                // ("٣ أشهر"); plain "ar" now defaults to Western ones.
+                date: new Date(status.subscriptionEnd).toLocaleDateString(
+                  lang === 'ar' ? 'ar-u-nu-arab' : 'en-GB',
+                  { day: 'numeric', month: 'long', year: 'numeric' },
+                ),
+              })}
             </p>
           )}
         </div>

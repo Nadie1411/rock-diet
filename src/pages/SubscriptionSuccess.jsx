@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Loader2,
   CheckCircle2,
@@ -10,7 +10,8 @@ import {
   CalendarDays,
 } from 'lucide-react';
 
-import { subscriptionService } from '../services/subscriptionService';
+import { orderService } from '../services/orderService';
+import { formatPaid, readReturnParams } from '../hooks/usePaymentResult';
 import { useSubscription } from '../context/SubscriptionContext';
 import { endChangePlan } from '../utils/changePlanIntent';
 import { useAuth } from '../context/AuthContext';
@@ -34,11 +35,18 @@ export default function SubscriptionSuccess() {
   const { isAuthenticated, loading: authLoading, refreshProfile } = useAuth();
   const { refresh: refreshSubscription } = useSubscription();
 
+  const params = useParams();
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState(null);
+  const [payment, setPayment] = useState(null);
   const [checking, setChecking] = useState(true);
   const [checkedOnce, setCheckedOnce] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
 
+  // The purchase this screen is waiting on: the API puts its id in the
+  // return URL's path; what checkout stashed, or the payment token the
+  // gateway appends, are the fallbacks.
+  const { orderId, paymentToken } = readReturnParams({ params, searchParams });
 
   useEffect(() => {
     try {
@@ -58,10 +66,37 @@ export default function SubscriptionSuccess() {
         // payment. So ask the server, and share the answer with the rest of
         // the app rather than letting this screen hold its own opinion.
         endChangePlan();
-        await refreshSubscription().catch(() => {});
-        const res = await subscriptionService.getStatus();
-        const s = res.data || null;
-        setStatus(s);
+
+        // Ask about the purchase itself first. This is what starts the
+        // subscription when no webhook arrives: the server checks the charge
+        // with the gateway and, if it was captured for the right amount,
+        // applies the package before the status below is read.
+        if (orderId || paymentToken) {
+          try {
+            const res = orderId
+              ? await orderService.reconcilePayment(orderId)
+              : await orderService.reconcileByToken(paymentToken);
+            const order = res?.data || res;
+            setPayment(order || null);
+            if (
+              order?.paymentStatus === 'failed' ||
+              order?.paymentStatus === 'cancelled'
+            ) {
+              navigate(`/payment/failure/${encodeURIComponent(order._id)}`, {
+                replace: true,
+              });
+              return;
+            }
+          } catch {
+            // The status call below also checks the purchase server-side.
+          }
+        }
+
+        // One read, shared with the rest of the app through the context —
+        // this used to refresh the context and then ask again itself, two
+        // identical requests per tick.
+        const s = await refreshSubscription().catch(() => null);
+        if (s) setStatus(s);
         if (s?.active) {
           // The package is applied by the payment path, so the account this
           // app is holding is out of date the moment it clears.
@@ -81,7 +116,7 @@ export default function SubscriptionSuccess() {
         setCheckedOnce(true);
       }
     },
-    [isAuthenticated, refreshProfile],
+    [isAuthenticated, refreshProfile, refreshSubscription, orderId, paymentToken, navigate],
   );
 
   useEffect(() => {
@@ -89,11 +124,23 @@ export default function SubscriptionSuccess() {
   }, [check]);
 
   // A cleared payment reaches the server through the gateway, not through
-  // this page, so it polls for a while rather than waiting to be told.
+  // this page, so it polls for a while rather than waiting to be told. Every
+  // five seconds at first, when the answer is most likely to arrive; then
+  // every fifteen; and not at all after a quarter-hour, when a tab left open
+  // was polling the API to no purpose — the button above still asks on
+  // demand.
   useEffect(() => {
     if (status?.active) return undefined;
-    const timer = setInterval(() => check({ silent: true }), 5000);
-    return () => clearInterval(timer);
+    const startedAt = Date.now();
+    let timer;
+    const tick = async () => {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed > 15 * 60_000) return;
+      await check({ silent: true });
+      timer = setTimeout(tick, elapsed < 60_000 ? 5000 : 15000);
+    };
+    timer = setTimeout(tick, 5000);
+    return () => clearTimeout(timer);
   }, [status?.active, check]);
 
   if (authLoading) {
@@ -122,13 +169,31 @@ export default function SubscriptionSuccess() {
                   {' '}
                   {t('subDoneUntil', {
                     date: new Date(status.subscriptionEnd).toLocaleDateString(
-                      lang === 'ar' ? 'ar' : 'en',
+                      lang === 'ar' ? 'ar-u-nu-arab' : 'en-GB',
                     ),
                   })}
                 </>
               )}
               . {t('subDoneNextStep')}
             </p>
+
+            {payment?.paymentStatus === 'paid' && (
+              <p className="text-xs text-text-secondary bg-surface border border-border rounded-xl px-4 py-2.5 mb-6">
+                {t('paymentDetailAmount')}{' '}
+                <span className="font-bold text-text">
+                  {formatPaid(payment.paidAmount ?? payment.totalPrice, payment.paidCurrency)}
+                </span>
+                {payment.paymentMethod && <> · {payment.paymentMethod}</>}
+                {(payment.paymentIntentId || payment.gatewayTransactionId) && (
+                  <>
+                    {' · '}
+                    <span className="font-mono">
+                      {payment.paymentIntentId || payment.gatewayTransactionId}
+                    </span>
+                  </>
+                )}
+              </p>
+            )}
 
             <Link
               to="/week-plan"
