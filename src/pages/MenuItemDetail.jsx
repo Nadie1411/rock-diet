@@ -87,7 +87,8 @@ export default function MenuItemDetail() {
 
   const catObj = typeof item.categoryId === 'object' ? item.categoryId : null;
   const catName = catObj ? L(catObj.name) : 'Healthy Meal';
-  const imgUrl = item.image?.secure_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80';
+  const imgUrl = item.image?.secure_url || '';
+  const lowStock = item.stock > 0 && item.stock <= 5;
 
   return (
     <div className="min-h-screen bg-bg text-text py-8">
@@ -100,34 +101,39 @@ export default function MenuItemDetail() {
         >
           <ArrowLeft className="w-4 h-4" />{t('backToMenu')}</button>
 
-        <div className="grid lg:grid-cols-2 gap-10 items-start">
-          
-          {/* Left — Image */}
-          <div className="relative rounded-2xl overflow-hidden border border-border bg-surface shadow-lg">
-            <img
-              src={imgUrl}
-              alt={L(item.name)}
-              className="w-full h-[400px] lg:h-[500px] object-cover"
-            />
-            
-            {/* Badges */}
-            <div className="absolute top-4 left-4 flex items-center gap-2">
-              <span className="bg-primary text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider capitalize">
-                {catName}
-              </span>
-              {item.stock > 0 && item.stock <= 5 && (
-                <span className="bg-warning text-white text-[10px] font-bold px-2.5 py-1 rounded-md">
-                  Only {item.stock} left
-                </span>
-              )}
-            </div>
+        {/* Two columns only when there is a photo to fill the left one. With
+            no photo the details take a single readable column, rather than
+            sitting beside a stock picture of food that isn't this dish. */}
+        <div className={imgUrl ? 'grid lg:grid-cols-2 gap-10 items-start' : 'max-w-2xl'}>
 
-            {/* Rating pill */}
-            <div className="absolute top-4 right-4 bg-bg/90 backdrop-blur-sm text-accent text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm">
-              <Star className="w-3.5 h-3.5 fill-accent text-accent" />
-              <span>4.9</span>
+          {/* Left — Image */}
+          {imgUrl && (
+            <div className="relative rounded-2xl overflow-hidden border border-border bg-surface shadow-lg">
+              <img
+                src={imgUrl}
+                alt={L(item.name)}
+                className="w-full h-[400px] lg:h-[500px] object-cover"
+              />
+
+              {/* Badges */}
+              <div className="absolute top-4 left-4 flex items-center gap-2">
+                <span className="bg-primary text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider capitalize">
+                  {catName}
+                </span>
+                {lowStock && (
+                  <span className="bg-warning text-white text-[10px] font-bold px-2.5 py-1 rounded-md">
+                    Only {item.stock} left
+                  </span>
+                )}
+              </div>
+
+              {/* Rating pill */}
+              <div className="absolute top-4 right-4 bg-bg/90 backdrop-blur-sm text-accent text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm">
+                <Star className="w-3.5 h-3.5 fill-accent text-accent" />
+                <span>4.9</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Right — Details */}
           <div className="space-y-6">
@@ -144,6 +150,21 @@ export default function MenuItemDetail() {
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-text">
               {L(item.name)}
             </h1>
+
+            {/* The pills the photo used to carry, now that it has none. */}
+            {!imgUrl && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="bg-bg border border-border text-accent text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 fill-accent text-accent" />
+                  <span>4.9</span>
+                </span>
+                {lowStock && (
+                  <span className="bg-warning text-white text-[10px] font-bold px-2.5 py-1 rounded-md">
+                    Only {item.stock} left
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Description */}
             <p className="text-text-secondary text-base leading-relaxed">

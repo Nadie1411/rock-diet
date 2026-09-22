@@ -9,15 +9,19 @@ import {
   Headphones,
   CheckCircle2,
   Clock,
+  MessageCircle,
+  ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supportService } from '../services/supportService';
+import { useSupportContact } from '../hooks/useSupportContact';
 import { useT } from '../i18n/useT';
 
 export default function CustomerService() {
   const { t, L } = useT();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const { whatsapp, whatsappUrl } = useSupportContact();
   const [phone, setPhone] = useState('');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
@@ -75,10 +79,43 @@ export default function CustomerService() {
           <h1 className="text-3xl font-extrabold tracking-tight text-text">
             {t('headingSupport')}
           </h1>
-          <p className="text-text-secondary text-sm mt-1">{t('supportIntro')}</p>
+          <p className="text-text-secondary text-sm mt-1">
+            {whatsappUrl ? t('supportIntroWhatsapp') : t('supportIntro')}
+          </p>
         </div>
 
-        {/* Card */}
+        {/* WhatsApp first. It is how customers here already talk to a
+            business, and a chat that opens in one tap beats a form that
+            promises a call. Rendered only when the panel has a number, so an
+            unset field never shows a button that goes nowhere. */}
+        {whatsappUrl && (
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-4 rounded-2xl border border-success/30 bg-success/5 p-6 hover:border-success transition-colors shadow-sm"
+          >
+            <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-success text-white shrink-0">
+              <MessageCircle className="w-6 h-6" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold text-text">{t('chatOnWhatsapp')}</span>
+              <span className="block text-sm text-text-secondary mt-0.5">
+                {t('whatsappFastest')}
+              </span>
+              {whatsapp && (
+                <span className="block text-xs font-semibold text-success mt-1 tabular-nums" dir="ltr">
+                  {whatsapp}
+                </span>
+              )}
+            </span>
+            <ArrowRight className="w-5 h-5 text-text-secondary shrink-0 rtl:rotate-180" />
+          </a>
+        )}
+
+        {/* The call-back form only when there is no WhatsApp number to send
+            people to. With one configured, the chat is the whole page. */}
+        {!whatsappUrl && (
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 shadow-sm">
           {submitted ? (
             /* Success state */
@@ -180,6 +217,7 @@ export default function CustomerService() {
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   );

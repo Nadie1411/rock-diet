@@ -163,7 +163,9 @@ export function MealSwapSheet({ product, catalogue = [], onClose, onSelect }) {
   const alternatives = useMemo(() => {
     const similar = catalogue.filter((p) => isSimilar(product, p));
     // An alternative that trips an allergy is not an alternative.
-    return similar.filter((p) => !checkAllergens(p).unsafe);
+    // Nor anything the kitchen has run out of — a swap the basket refuses is
+    // not a swap.
+    return similar.filter((p) => Number(p.stock) > 0 && !checkAllergens(p).unsafe);
   }, [catalogue, product, checkAllergens]);
 
   if (!product) return null;

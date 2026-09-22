@@ -172,7 +172,9 @@ export default function Menu() {
               const count = getItemCartCount(item._id);
               const catObj = typeof item.categoryId === 'object' ? item.categoryId : null;
               const catName = catObj ? L(catObj.name) : 'Healthy Meal';
-              const imgUrl = item.image?.secure_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+              const imgUrl = item.image?.secure_url || '';
+              const unsafe = checkAllergens(item).unsafe;
+              const lowStock = item.stock > 0 && item.stock <= 5;
               const protein = Math.round(item.protein || 0);
               const carbs = Math.round(item.carbs || 0);
               const fats = Math.round(item.fats || 0);
@@ -184,34 +186,39 @@ export default function Menu() {
                   to={`/menu/${item._id}`}
                   className="group block bg-bg border border-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-200 flex flex-col"
                 >
-                  <div className="relative h-44 overflow-hidden bg-surface">
-                    <img
-                      src={imgUrl}
-                      alt={L(item.name)}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
-                    />
-                    
-                    {/* Stock badge if low */}
-                    {item.stock > 0 && item.stock <= 5 && (
-                      <div className="absolute top-2.5 start-2.5">
-                        <span className="bg-warning text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
-                          {t('onlyNLeft', { count: item.stock })}
-                        </span>
-                      </div>
-                    )}
+                  {/* No photo yet, no photo slot — a stock picture of someone
+                      else's food is worse than none. The badges it carried
+                      move into the card body below. */}
+                  {imgUrl && (
+                    <div className="relative h-44 overflow-hidden bg-surface">
+                      <img
+                        src={imgUrl}
+                        alt={L(item.name)}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
+                      />
 
-                    {/* Flagged on the card, so a meal that could hurt this
-                        customer is obvious while they are still scanning the
-                        menu — not after they have paid for it. */}
-                    {checkAllergens(item).unsafe && (
-                      <div className="absolute top-2.5 end-2.5">
-                        <span className="flex items-center gap-1 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm">
-                          <ShieldAlert className="w-3 h-3" />
-                          {t('allergyBadge')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                      {/* Stock badge if low */}
+                      {lowStock && (
+                        <div className="absolute top-2.5 start-2.5">
+                          <span className="bg-warning text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            {t('onlyNLeft', { count: item.stock })}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Flagged on the card, so a meal that could hurt this
+                          customer is obvious while they are still scanning the
+                          menu — not after they have paid for it. */}
+                      {unsafe && (
+                        <div className="absolute top-2.5 end-2.5">
+                          <span className="flex items-center gap-1 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm">
+                            <ShieldAlert className="w-3 h-3" />
+                            {t('allergyBadge')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                     <div>
@@ -224,6 +231,25 @@ export default function Menu() {
                       <h3 className="text-sm font-bold text-text group-hover:text-primary transition-colors">
                         {L(item.name)}
                       </h3>
+
+                      {/* With no photo above, the allergy warning has nowhere
+                          to sit — and it is the one thing on this card that
+                          must not be dropped. */}
+                      {!imgUrl && (unsafe || lowStock) && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          {unsafe && (
+                            <span className="flex items-center gap-1 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                              <ShieldAlert className="w-3 h-3" />
+                              {t('allergyBadge')}
+                            </span>
+                          )}
+                          {lowStock && (
+                            <span className="bg-warning text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                              {t('onlyNLeft', { count: item.stock })}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       <p className="text-text-secondary text-xs mt-1 line-clamp-2 leading-relaxed">
                         {L(item.description) || 'Nutritious & delicious meal crafted with high-quality ingredients.'}

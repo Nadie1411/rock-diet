@@ -24,4 +24,7 @@ export const orderService = {
   // before the redirect and read back here.
   reconcilePayment: (orderId) =>
     api.post(`order/${orderId}/reconcile`, {}, { auth: true }),
+  /** The same by the gateway's payment token, which Ecom appends to the return URL. */
+  reconcileByToken: (paymentToken) =>
+    api.post('order/reconcile', { paymentToken }, { auth: true }),
 };

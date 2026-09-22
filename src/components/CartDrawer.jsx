@@ -376,26 +376,33 @@ export default function CartDrawer() {
                   <div className="space-y-3">
                     {items.map((item) => {
                       const prod = item.productId || {};
-                      const img =
-                        prod.image?.secure_url ||
-                        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80";
+                      const img = prod.image?.secure_url || "";
 
                       return (
                         <div
                           key={prod._id || item._id}
                           className="bg-surface border border-border rounded-xl p-3 flex gap-3 items-center"
                         >
-                          <img
-                            src={img}
-                            alt={prod.name || "Meal"}
-                            className="w-16 h-16 rounded-lg object-cover bg-bg shrink-0"
-                          />
+                          {/* A dish with no photo shows none: a stock stand-in
+                              reads as the food the customer is paying for. */}
+                          {img && (
+                            <img
+                              src={img}
+                              alt={prod.name || "Meal"}
+                              className="w-16 h-16 rounded-lg object-cover bg-bg shrink-0"
+                            />
+                          )}
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs font-bold text-text truncate">
                               {prod.name}
                             </h4>
                             <p className="text-xs font-extrabold text-primary mt-0.5">
-                              KD {(prod.price || 0).toFixed(3)}
+                              KD {(item.unitPrice ?? prod.price ?? 0).toFixed(3)}
+                              {item.packageName && (
+                                <span className="ms-1.5 font-semibold text-text-secondary">
+                                  · {L(item.packageName)}
+                                </span>
+                              )}
                             </p>
 
                             {/* Quantity Control */}
@@ -459,7 +466,7 @@ export default function CartDrawer() {
                             </span>
                             <span className="font-semibold text-text">
                               KD{" "}
-                              {((it.productId?.price || 0) * it.quantity).toFixed(
+                              {((it.unitPrice ?? it.productId?.price ?? 0) * it.quantity).toFixed(
                                 3,
                               )}
                             </span>
