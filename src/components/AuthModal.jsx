@@ -18,20 +18,20 @@ export default function AuthModal({ reason, onClose }) {
   const { t } = useT();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const emailRef = useRef(null);
+  const identityRef = useRef(null);
   const dialogRef = useRef(null);
 
   // Straight into the first field: this opened because they pressed
   // something, so it should cost one keystroke to carry on, not a hunt for
   // where to type.
   useEffect(() => {
-    emailRef.current?.focus();
+    identityRef.current?.focus();
   }, []);
 
   // Escape closes it, like every other sheet on the web.
@@ -57,7 +57,7 @@ export default function AuthModal({ reason, onClose }) {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(identity, password);
       // Not closed here. AuthGate closes it once the app is actually in the
       // signed-in state, and replays whatever this interrupted.
     } catch (err) {
@@ -107,18 +107,24 @@ export default function AuthModal({ reason, onClose }) {
             </p>
           )}
 
+          {/* Email or phone, like the sign-in page: the same customers reach
+              this modal, and half of them have only a number. Not
+              type="email", which would refuse a phone number as malformed
+              before the form could submit. */}
           <label className="block">
             <span className="text-xs font-semibold text-text-secondary">
-              {t('emailAddress')}
+              {t('emailOrPhone')}
             </span>
             <input
-              ref={emailRef}
-              type="email"
+              ref={identityRef}
+              type="text"
+              inputMode="email"
               required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              autoComplete="username"
+              dir="ltr"
+              value={identity}
+              onChange={(e) => setIdentity(e.target.value)}
+              placeholder={t('authIdentityHint')}
               className="w-full mt-1 px-4 py-3 rounded-xl bg-surface border border-border text-sm focus:outline-none focus:border-primary"
             />
           </label>
