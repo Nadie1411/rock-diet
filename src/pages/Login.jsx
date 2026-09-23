@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
+import { AtSign, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../services/api';
 import { hasDraft } from '../utils/subscribeDraft';
@@ -12,7 +12,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -22,14 +22,14 @@ export default function Login() {
     e.preventDefault();
     setError('');
 
-    if (!email || !password) {
+    if (!identity || !password) {
       setError(t('fillAllFields'));
       return;
     }
 
     setLoading(true);
     try {
-      await login(email, password);
+      await login(identity, password);
       // Back to what they were doing. An unfinished subscription counts on
       // its own: they reached this screen from the pay button, and landing on
       // the home page instead means finding the wizard again from scratch.
@@ -75,17 +75,21 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
+            {/* Email or phone. Not type="email": the browser would refuse a
+                phone number as malformed before the form ever submitted. */}
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-text mb-1.5">{t('emailAddress')}</label>
+              <label htmlFor="identity" className="block text-xs font-semibold text-text mb-1.5">{t('emailOrPhone')}</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('authEmailHint')}
+                  id="identity"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="username"
+                  dir="ltr"
+                  value={identity}
+                  onChange={(e) => setIdentity(e.target.value)}
+                  placeholder={t('authIdentityHint')}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   required
                 />

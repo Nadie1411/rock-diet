@@ -14,7 +14,7 @@ const PASSWORD_REGEX = // Length only. The server asks for eight characters and 
 export default function Signup() {
   const { t, L } = useT();
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, login } = useAuth();
   /*
    * Pre-filled from the subscription they were part-way through buying.
    *
@@ -76,8 +76,14 @@ export default function Signup() {
   };
 
   const validate = () => {
-    if (!form.userName || !form.email || !form.phoneNumber || !form.password || !form.confirmPassword || !form.age || !form.weight || !form.height || !form.gender || !form.goal) {
+    if (!form.userName || !form.phoneNumber || !form.password || !form.confirmPassword || !form.age || !form.weight || !form.height || !form.gender || !form.goal) {
       return 'Please fill in all required profile fields';
+    }
+    // Optional, because the phone number is the account. A typo in one that
+    // was typed is worth catching here: nothing bounces back to us, the
+    // customer simply never receives their confirmation code.
+    if (form.email.trim() && !/.+@.+\..+/.test(form.email.trim())) {
+      return t('emailLooksWrong');
     }
     if (form.userName.trim().split(/\s+/).length < 2) {
       return 'Please enter your full name (first and last name)';
@@ -112,10 +118,13 @@ export default function Signup() {
 
     setLoading(true);
     try {
+      const phoneNumber = `${selectedCountry.dial}${form.phoneNumber.trim()}`;
+      const email = form.email.trim();
+
       const data = {
         userName: form.userName.trim(),
-        email: form.email.trim(),
-        phoneNumber: `${selectedCountry.dial}${form.phoneNumber.trim()}`,
+        ...(email ? { email } : {}),
+        phoneNumber,
         password: form.password,
         confirmPassword: form.confirmPassword,
         age: Number(form.age),
@@ -128,12 +137,25 @@ export default function Signup() {
         duration: '1 month',
       };
       await signup(data);
+
+      const next = hasDraft() ? '/subscribe' : '/';
+
+      // Signing up on a phone number alone confirms the account there and
+      // then — there is nowhere to send a code. Sending them to the code
+      // screen would ask for one that does not exist and was never sent, so
+      // they are signed in with what they just typed and carry on.
+      if (!email) {
+        await login(phoneNumber, form.password);
+        navigate(next, { replace: true });
+        return;
+      }
+
       // Navigate to OTP confirmation
       // Carries where they came from, so the code screen can hand them back
       // to the purchase instead of leaving them on a sign-in page with a
       // half-built subscription they have to find again.
       navigate('/confirm-email', {
-        state: { email: data.email, from: hasDraft() ? '/subscribe' : null },
+        state: { email, from: hasDraft() ? '/subscribe' : null },
       });
     } catch (err) {
       if (err instanceof ApiError) {
@@ -198,9 +220,13 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Email */}
+            {/* Email — optional. The phone number is the account; an address
+                is where a confirmation code and receipts can also go. */}
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-text mb-1.5">{t('emailAddress')}</label>
+              <label htmlFor="email" className="block text-xs font-semibold text-text mb-1.5">
+                {t('emailAddress')}{' '}
+                <span className="font-normal text-text-secondary">{t('optionalSuffix')}</span>
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
                 <input
@@ -211,9 +237,9 @@ export default function Signup() {
                   onChange={handleChange}
                   placeholder={t('authEmailHint')}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-bg border border-border text-text text-sm placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                  required
                 />
               </div>
+              <p className="mt-1.5 text-xs text-text-secondary">{t('emailOptionalHint')}</p>
             </div>
 
             {/* Phone */}
