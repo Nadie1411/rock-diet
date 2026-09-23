@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/authService';
+import { identityOf } from '../utils/identity';
 
 const AuthContext = createContext(null);
 
@@ -53,8 +54,13 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const res = await authService.login({ email, password });
+  /**
+   * `identity` is an email address or a phone number — whichever the customer
+   * has. The API accepts either and the field asks for both, so nothing here
+   * needs to know which it was given.
+   */
+  const login = useCallback(async (identity, password) => {
+    const res = await authService.login({ ...identityOf(identity), password });
     if (res.data?.access_token) {
       localStorage.setItem('access_token', res.data.access_token);
     }
