@@ -773,7 +773,9 @@ export default function Subscribe() {
           setError('');
           return;
         }
-        setError(err?.message || t('couldNotPrice'));
+        setError(
+          err?.code === 'server_busy' ? t('serverBusy') : err?.message || t('couldNotPrice'),
+        );
       })
       .finally(() => setQuoting(false));
   }, [step, pkg, duration, selection]);

@@ -8,6 +8,40 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * What to put in front of a customer when a request fails.
+ *
+ * A server in trouble very often answers with a proxy's HTML error page
+ * rather than with JSON, and `message` then holds an entire document. One of
+ * those was rendered inside the red box on the pay screen — a customer at the
+ * last step of a purchase reading "503 Service Temporarily Unavailable" in
+ * raw markup. Anything that is not a short, plain sentence is kept for the
+ * console and replaced here.
+ *
+ * `code` travels with the error so a screen can say it in the reader's own
+ * language; the text is the fallback for the ones that have not been taught
+ * to.
+ */
+const humanError = (data, status) => {
+  const raw = typeof data?.message === 'string' ? data.message.trim() : '';
+  const usable = raw && raw.length <= 200 && !/^<|<\/?[a-z]+[\s>]/i.test(raw);
+
+  if (usable) return { message: raw, code: null };
+
+  if (raw) {
+    console.error(`[api] ${status} carried no usable message:`, raw.slice(0, 300));
+  }
+
+  if (status >= 500 || status === 0) {
+    return {
+      message: 'The server is busy. Please try again in a moment.',
+      code: 'server_busy',
+    };
+  }
+
+  return { message: 'Something went wrong. Please try again.', code: 'unknown' };
+};
+
 let refreshPromise = null;
 
 const refreshAccessToken = async () => {
@@ -85,8 +119,10 @@ const request = async (path, { method = 'GET', body, headers = {}, auth = false 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const errorMsg = data.message || 'Request failed';
-    throw new ApiError(errorMsg, res.status, data);
+    const { message, code } = humanError(data, res.status);
+    const error = new ApiError(message, res.status, data);
+    error.code = code;
+    throw error;
   }
 
   return data;
