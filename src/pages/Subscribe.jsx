@@ -319,14 +319,21 @@ export default function Subscribe() {
   // the whole list); 'merge' for a guest's ticks, which join the account's.
   const [allergyMode, setAllergyMode] = useState('merge');
   const [allergySaving, setAllergySaving] = useState(false);
-  /** Which course the meals step is showing; 'all' for the whole day. */
-  const [slotFilter, setSlotFilter] = useState('all');
+  /**
+   * Which course the meals step is showing.
+   *
+   * One course at a time, always. The whole day at once was a menu of forty
+   * dishes with the four decisions inside it left for the customer to find —
+   * and "1 of 4 meals" said nothing about which four. Empty means "the first
+   * course this package buys", resolved below once the package is known.
+   */
+  const [slotFilter, setSlotFilter] = useState('');
 
-  // Every day opens on the whole menu. The course was picked to find one
-  // day's snack, not as a preference — and Friday opening on "snack" alone
-  // looked like a menu with two dishes on it.
+  // Every day opens at breakfast and is walked through in the order it is
+  // eaten. A course carried over from the previous day would open Tuesday on
+  // whatever Monday finished on, which is the middle of a decision.
   useEffect(() => {
-    setSlotFilter('all');
+    setSlotFilter('');
   }, [activeDay]);
 
   // Monday, for the pieces that only ever spoke about a day: the saved draft
@@ -881,10 +888,20 @@ export default function Subscribe() {
     return offeredProducts.filter((p) => !grouped.has(p._id));
   }, [offeredProducts, slotGroups]);
 
-  // A course filter that the package does not offer falls back to the day.
-  const effectiveSlotFilter = slotGroups.some((g) => g.slot === slotFilter)
-    ? slotFilter
-    : 'all';
+  /**
+   * The course actually on screen.
+   *
+   * What they picked, as long as this package has it; otherwise the first one
+   * — which is also what an unset filter means, on arriving at a new day.
+   * "other" is its own course when the kitchen has dishes outside the four.
+   */
+  const effectiveSlotFilter = useMemo(() => {
+    const available = [
+      ...slotGroups.map((g) => g.slot),
+      ...(ungrouped.length ? ['other'] : []),
+    ];
+    return available.includes(slotFilter) ? slotFilter : available[0] ?? '';
+  }, [slotGroups, ungrouped, slotFilter]);
 
   /** How many of this course are already chosen for the day on screen. */
   const chosenInSlot = useCallback(
@@ -914,35 +931,55 @@ export default function Subscribe() {
 
   const toggleMeal = useCallback(
     (product, group) => {
-      setDayMeals((prev) => {
-        const ids = prev[activeDay] || [];
+      const ids = dayMeals[activeDay] || [];
+      const inSlot = group
+        ? ids.filter((id) => group.items.some((p) => p._id === id))
+        : [];
+      const wasFull = group ? inSlot.length >= group.allowance : false;
 
-        if (ids.includes(product._id)) {
-          return { ...prev, [activeDay]: ids.filter((x) => x !== product._id) };
-        }
+      let next;
 
-        if (group) {
-          // A full course swaps: the dish chosen earliest makes way for this
-          // one, in its place. Changing a breakfast used to take two taps —
-          // one to un-choose it, one to choose the other — with every other
-          // dish greyed out in between, which read as a menu you could not
-          // order from.
-          const inSlot = ids.filter((id) => group.items.some((p) => p._id === id));
-          if (inSlot.length >= group.allowance) {
-            return {
-              ...prev,
-              [activeDay]: ids.map((id) => (id === inSlot[0] ? product._id : id)),
-            };
-          }
-        } else if (mealLimit && ids.length >= mealLimit) {
-          // Full for the day, with no course of its own to swap within.
-          return prev;
-        }
+      if (ids.includes(product._id)) {
+        next = ids.filter((x) => x !== product._id);
+      } else if (group && wasFull) {
+        // A full course swaps: the dish chosen earliest makes way for this
+        // one, in its place. Changing a breakfast used to take two taps —
+        // one to un-choose it, one to choose the other — with every other
+        // dish greyed out in between, which read as a menu you could not
+        // order from.
+        next = ids.map((id) => (id === inSlot[0] ? product._id : id));
+      } else if (!group && mealLimit && ids.length >= mealLimit) {
+        // Full for the day, with no course of its own to swap within.
+        return;
+      } else {
+        next = [...ids, product._id];
+      }
 
-        return { ...prev, [activeDay]: [...ids, product._id] };
-      });
+      setDayMeals((prev) => ({ ...prev, [activeDay]: next }));
+
+      // Choosing the last dish a course allows moves on to the next course
+      // that still needs one: the decision is finished, and staying on it
+      // leaves the customer to notice that and find the next chip for
+      // themselves, which is how a day two taps from done looked like forty.
+      //
+      // Worked out here rather than inside the state updater, which React
+      // does not run when it is called — the flag set in there was read back
+      // before it had been written, so nothing ever advanced.
+      //
+      // Only on the tap that completes a course, and never on a swap: coming
+      // back to change a breakfast must not fling them forward to dinner.
+      if (!group || wasFull || ids.includes(product._id)) return;
+      if (inSlot.length + 1 < group.allowance) return;
+
+      const chosen = new Set(next);
+      const from = slotGroups.findIndex((g) => g.slot === group.slot);
+      const onwards = slotGroups
+        .slice(from + 1)
+        .find((g) => g.items.filter((p) => chosen.has(p._id)).length < g.allowance);
+
+      if (onwards) setSlotFilter(onwards.slot);
     },
-    [activeDay, mealLimit],
+    [activeDay, mealLimit, slotGroups, dayMeals],
   );
 
   // What the review screen reports back: how much of the week they filled in.
@@ -1630,30 +1667,48 @@ export default function Subscribe() {
                 })}
               </div>
 
-              {/* One course at a time, for a menu long enough that breakfast
-                  and dinner are a long scroll apart. "All" is the whole day. */}
-              {slotGroups.length > 1 && (
+              {/* One course at a time, in the order the day is eaten, each
+                  chip carrying how much of it is decided. There is no "all":
+                  the whole menu at once is where the four decisions a day
+                  actually holds went missing. */}
+              {(slotGroups.length > 1 || ungrouped.length > 0) && (
                 <div className="flex gap-1.5 overflow-x-auto pb-2 pt-1">
-                  {[{ key: 'all', label: t('commonAll') }, ...slotGroups.map((g) => ({ key: g.slot, label: t(SLOT_LABELS[g.slot]) }))].map(
-                    (option) => {
-                      const on = effectiveSlotFilter === option.key;
-                      return (
-                        <button
-                          key={option.key}
-                          type="button"
-                          onClick={() => setSlotFilter(option.key)}
-                          aria-pressed={on}
-                          className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-bold border transition-colors ${
-                            on
-                              ? 'bg-text text-surface border-text'
+                  {[
+                    ...slotGroups.map((g) => ({
+                      key: g.slot,
+                      label: t(SLOT_LABELS[g.slot]),
+                      taken: chosenInSlot(g),
+                      allowance: g.allowance,
+                    })),
+                    ...(ungrouped.length
+                      ? [{ key: 'other', label: t('slotOther'), taken: 0, allowance: 0 }]
+                      : []),
+                  ].map((option) => {
+                    const on = effectiveSlotFilter === option.key;
+                    const done = option.allowance > 0 && option.taken >= option.allowance;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setSlotFilter(option.key)}
+                        aria-pressed={on}
+                        className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                          on
+                            ? 'bg-text text-surface border-text'
+                            : done
+                              ? 'bg-success/10 border-success/30 text-success'
                               : 'bg-surface border-border text-text-secondary hover:border-primary/50'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    },
-                  )}
+                        }`}
+                      >
+                        {option.label}
+                        {option.allowance > 0 && (
+                          <span className="tabular-nums opacity-80">
+                            {option.taken}/{option.allowance}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1665,7 +1720,7 @@ export default function Subscribe() {
             ) : (
               <div className="space-y-7">
                 {slotGroups
-                  .filter((group) => effectiveSlotFilter === 'all' || group.slot === effectiveSlotFilter)
+                  .filter((group) => group.slot === effectiveSlotFilter)
                   .map((group) => {
                   const taken = chosenInSlot(group);
                   const full = taken >= group.allowance;
@@ -1721,7 +1776,7 @@ export default function Subscribe() {
                 {/* Anything the menu offers that is not one of this plan's
                     courses. Shown last rather than dropped, so a dish never
                     silently disappears because its category is unexpected. */}
-                {ungrouped.length > 0 && effectiveSlotFilter === 'all' && (
+                {ungrouped.length > 0 && effectiveSlotFilter === 'other' && (
                   <div>
                     <h2 className="text-sm font-extrabold mb-2.5">{t('slotOther')}</h2>
                     <div className="grid grid-cols-2 gap-3">
