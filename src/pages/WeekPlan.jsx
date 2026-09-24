@@ -752,7 +752,7 @@ function DayPicker({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
       <div className="w-full sm:max-w-lg max-h-[90vh] bg-bg rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-3 p-4 border-b border-border bg-surface">
+        <header className="shrink-0 flex items-center justify-between gap-3 p-4 border-b border-border bg-surface">
           <div>
             <h2 className="font-extrabold">{t(DAY_KEYS[dayOfWeek - 1])}</h2>
             {date && (
@@ -786,8 +786,12 @@ function DayPicker({
         {/* One course at a time, each chip saying how much of it is decided.
             The same shape as the subscribe wizard, because it is the same
             decision being made a second time. */}
+        {/* `shrink-0` because in a column flex box every child shrinks by
+            default, and the scrolling list below asks for all the room there
+            is — without it the chips are squeezed to a sliver and read as a
+            half-drawn row lying over the meals. */}
         {courses.length > 1 && (
-          <div className="flex gap-1.5 overflow-x-auto px-4 pt-3 pb-1 bg-surface border-b border-border">
+          <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto px-4 py-3 bg-surface border-b border-border">
             {courses.map((course) => {
               const on = course.catId === activeCourse;
               const done = course.allowance > 0 && course.taken >= course.allowance;
@@ -894,7 +898,7 @@ function DayPicker({
           })}
         </div>
 
-        <footer className="p-4 border-t border-border bg-surface">
+        <footer className="shrink-0 p-4 border-t border-border bg-surface">
           <button
             type="button"
             onClick={() => onSave(picked)}
