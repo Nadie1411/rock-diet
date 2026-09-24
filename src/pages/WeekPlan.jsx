@@ -570,6 +570,15 @@ function DayPicker({
   const { t, L, lang } = useT();
   const [picked, setPicked] = useState(selected);
 
+  /**
+   * Which course is on screen. Empty means the first one.
+   *
+   * The sheet used to stack every course in one scroll, so editing Sunday's
+   * dinner meant scrolling past breakfast and lunch to reach it, and nothing
+   * on screen said how many of each the day was allowed.
+   */
+  const [courseFilter, setCourseFilter] = useState('');
+
   const full = picked.length >= mealsPerDay;
 
   // The slot a category stands for, matched on the English half so it holds
@@ -622,12 +631,122 @@ function DayPicker({
     return [...byCategory.entries()].sort((a, b) => rank(a[0]) - rank(b[0]));
   }, [products, categories, allowance, slotOfCategory]);
 
-  const toggle = (id) => {
+  /** How many of each course this package buys a day. */
+  const slotCounts = useMemo(() => {
+    const counts = {};
+    for (const s of allowance?.slots ?? []) {
+      if (s.count > 0) counts[s.slot] = s.count;
+    }
+    return counts;
+  }, [allowance]);
+
+  /** The dishes of one course, and how many of them this day may hold. */
+  const courseOf = useCallback(
+    (catId) => {
+      const slot = slotOfCategory(catId);
+      return { slot, allowance: slot ? (slotCounts[slot] ?? 0) : 0 };
+    },
+    [slotOfCategory, slotCounts],
+  );
+
+  /**
+   * Chosen so far in the course a dish belongs to.
+   *
+   * Counted over the products on offer rather than the ids alone, because an
+   * id says nothing about which course it came from.
+   */
+  const chosenInCourse = useCallback(
+    (slot) =>
+      picked.filter((id) => {
+        const product = products.find((p) => p._id === id);
+        if (!product) return false;
+        const catId =
+          typeof product.categoryId === 'string'
+            ? product.categoryId
+            : product.categoryId?._id;
+        return slotOfCategory(catId) === slot;
+      }).length,
+    [picked, products, slotOfCategory],
+  );
+
+  /** The courses this day is built from, in the order it is eaten. */
+  const courses = useMemo(
+    () =>
+      grouped.map(([catId]) => {
+        const slot = slotOfCategory(catId);
+        const cat = categories.find((c) => c._id === catId);
+        return {
+          catId,
+          slot,
+          label: cat ? L(cat.name) : t('commonOther'),
+          allowance: slot ? (slotCounts[slot] ?? 0) : 0,
+          taken: slot ? chosenInCourse(slot) : 0,
+        };
+      }),
+    [grouped, categories, slotOfCategory, slotCounts, chosenInCourse, L, t],
+  );
+
+  /** The course on screen: the one chosen, else the first. */
+  const activeCourse = useMemo(() => {
+    const match = courses.find(
+      (c) => c.slot === courseFilter || c.catId === courseFilter,
+    );
+    return (match ?? courses[0])?.catId ?? null;
+  }, [courses, courseFilter]);
+
+  const toggle = (id, catId) => {
+    const { slot, allowance: courseAllowance } = courseOf(catId);
+    const removing = picked.includes(id);
+    const takenBefore = slot ? chosenInCourse(slot) : 0;
+    const wasFull = Boolean(slot) && courseAllowance > 0 && takenBefore >= courseAllowance;
+
     setPicked((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= mealsPerDay) return prev;
+
+      // A course that is full swaps rather than refuses: the dish chosen
+      // first makes way, in its place. Four meals a day means one breakfast,
+      // one lunch, one dinner and a snack — not four breakfasts, which is
+      // what a bare daily total allowed, and what the kitchen would then
+      // have had to cook.
+      if (slot && courseAllowance > 0) {
+        const inCourse = prev.filter((x) => {
+          const product = products.find((p) => p._id === x);
+          const otherCat =
+            typeof product?.categoryId === 'string'
+              ? product.categoryId
+              : product?.categoryId?._id;
+          return slotOfCategory(otherCat) === slot;
+        });
+        if (inCourse.length >= courseAllowance) {
+          return prev.map((x) => (x === inCourse[0] ? id : x));
+        }
+      } else if (prev.length >= mealsPerDay) {
+        // No course of its own to swap within, so the day's total decides.
+        return prev;
+      }
+
       return [...prev, id];
     });
+
+    // Finishing a course moves on to the next one still short, the same way
+    // the subscribe wizard walks a day.
+    //
+    // Not when un-choosing, and not on a swap: both mean someone came back to
+    // a course on purpose, and moving them off it is the opposite of help.
+    if (removing || wasFull) return;
+
+    if (slot && courseAllowance > 0 && takenBefore + 1 >= courseAllowance) {
+      const order = grouped.map(([cat]) => slotOfCategory(cat));
+      const from = order.indexOf(slot);
+      const next = grouped
+        .slice(from + 1)
+        .find(([cat]) => {
+          const nextSlot = slotOfCategory(cat);
+          const room = nextSlot ? (slotCounts[nextSlot] ?? 0) : 0;
+          return room > 0 && chosenInCourse(nextSlot) < room;
+        });
+      if (next) setCourseFilter(slotOfCategory(next[0]));
+    }
   };
 
   return (
@@ -664,9 +783,49 @@ function DayPicker({
           </div>
         </header>
 
+        {/* One course at a time, each chip saying how much of it is decided.
+            The same shape as the subscribe wizard, because it is the same
+            decision being made a second time. */}
+        {courses.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto px-4 pt-3 pb-1 bg-surface border-b border-border">
+            {courses.map((course) => {
+              const on = course.catId === activeCourse;
+              const done = course.allowance > 0 && course.taken >= course.allowance;
+              return (
+                <button
+                  key={course.catId || 'other'}
+                  type="button"
+                  onClick={() => setCourseFilter(course.slot || course.catId)}
+                  aria-pressed={on}
+                  className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors ${
+                    on
+                      ? 'bg-text text-surface border-text'
+                      : done
+                        ? 'bg-success/10 border-success/30 text-success'
+                        : 'bg-surface border-border text-text-secondary hover:border-primary/50'
+                  }`}
+                >
+                  {course.label}
+                  {course.allowance > 0 && (
+                    <span className="tabular-nums opacity-80">
+                      {course.taken}/{course.allowance}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {grouped.map(([catId, items]) => {
+          {grouped
+            .filter(([catId]) => catId === activeCourse)
+            .map(([catId, items]) => {
             const cat = categories.find((c) => c._id === catId);
+            // A course with an allowance of its own is never closed: picking
+            // a second breakfast swaps the first out. Only a dish with no
+            // course to swap within is blocked by a full day.
+            const courseHasRoom = courseOf(catId).allowance > 0;
             return (
               <section key={catId || 'other'}>
                 <h3 className="text-xs font-bold uppercase tracking-wide text-text-secondary mb-1">
@@ -694,8 +853,8 @@ function DayPicker({
                       <button
                         key={p._id}
                         type="button"
-                        onClick={() => toggle(p._id)}
-                        disabled={!chosen && full}
+                        onClick={() => toggle(p._id, catId)}
+                        disabled={!chosen && full && !courseHasRoom}
                         className={`w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-colors ${
                           chosen
                             ? 'border-primary bg-primary/5'

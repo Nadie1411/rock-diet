@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useT } from '../i18n/useT';
 import { isChangingPlan } from '../utils/changePlanIntent';
+import { hasDraft } from '../utils/subscribeDraft';
 
 /**
  * Guards the screens that offer packages.
@@ -27,11 +28,27 @@ export default function RequirePlanChoice({ children }) {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { hasActivePlan, known, error, loading, refresh } = useSubscription();
 
+  /**
+   * Already part-way through, rather than deciding whether to start.
+   *
+   * This guard answers "may this person be shown the picker?", which is the
+   * right question on the way in and the wrong one once they are inside it.
+   * Signing in happens at the pay button and at the promo field — so a
+   * visitor who had configured a whole subscription, then signed in to use a
+   * code, turned from a guest into a customer with a plan mid-sentence and
+   * was redirected to /plan, losing the wizard, the code and the choices.
+   *
+   * A draft only exists while a wizard is open in this tab, so it is the
+   * thing that distinguishes the two. Nothing is sold by staying: paying is
+   * a separate, deliberate press, and the server prices it either way.
+   */
+  const midFlow = hasDraft();
+
   // A guest has nothing to protect: they are browsing, and the pages ask for
   // a sign-in at the point it is needed.
   if (!authLoading && !isAuthenticated) return children;
 
-  if (authLoading || (loading && !known)) {
+  if (authLoading || (loading && !known && !midFlow)) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -42,7 +59,7 @@ export default function RequirePlanChoice({ children }) {
   // Asked, and could not find out. Offering the picker here risks selling a
   // second subscription to someone who already has one, so it stays shut and
   // says why.
-  if (!known && error) {
+  if (!known && error && !midFlow) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
@@ -71,14 +88,14 @@ export default function RequirePlanChoice({ children }) {
     );
   }
 
-  if (hasActivePlan && !isChangingPlan()) {
+  if (hasActivePlan && !isChangingPlan() && !midFlow) {
     return <Navigate to="/plan" replace state={{ from: location.pathname }} />;
   }
 
   // The invariant, stated once: the picker opens on a definite answer and on
   // nothing else. Without this an unforeseen combination of flags could still
   // fall through to it, which is how the previous version failed.
-  if (!known) {
+  if (!known && !midFlow) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-primary" />
