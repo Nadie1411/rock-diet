@@ -58,6 +58,21 @@ function GuestRoute({ children }) {
   return children;
 }
 
+/**
+ * The footer, except where it would sit underneath a price.
+ *
+ * The subscribe wizard ends on a pay button pinned to the bottom of the
+ * screen, and the marketing footer scrolled up behind it: quick links, diet
+ * plans and a delivery promise wedged between the total and the button a
+ * customer is trying to press. A checkout should offer one way forward, so
+ * the footer stays off it.
+ */
+function SiteFooter() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/subscribe')) return null;
+  return <Footer />;
+}
+
 function App() {
   return (
     <LanguageProvider>
@@ -126,7 +141,7 @@ function App() {
                 </Routes>
               </main>
               <CustomerServiceButton />
-              <Footer />
+              <SiteFooter />
 
               {/* The app's bottom tab bar, phones only. The spacer keeps the
                   last of the page clear of it. */}
