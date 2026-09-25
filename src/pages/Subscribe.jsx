@@ -237,6 +237,9 @@ export default function Subscribe() {
   // Previewed against the quote through the same endpoint the basket uses.
   // The server re-checks it at checkout and prices from its own answer — this
   // is what the customer is shown, never what they are charged on.
+  /** A dish to point at on arrival — the one they were sent to change. */
+  const [highlightId, setHighlightId] = useState('');
+
   const [promoInput, setPromoInput] = useState('');
   const [promo, setPromo] = useState(null);
   const [promoError, setPromoError] = useState('');
@@ -329,11 +332,19 @@ export default function Subscribe() {
    */
   const [slotFilter, setSlotFilter] = useState('');
 
+  /**
+   * A course to open the next day on, set by something that knows where it
+   * is sending the customer — "change the dish you are allergic to" knows
+   * exactly which course holds it. Cleared as it is used.
+   */
+  const pendingSlot = useRef('');
+
   // Every day opens at breakfast and is walked through in the order it is
   // eaten. A course carried over from the previous day would open Tuesday on
   // whatever Monday finished on, which is the middle of a decision.
   useEffect(() => {
-    setSlotFilter('');
+    setSlotFilter(pendingSlot.current || '');
+    pendingSlot.current = '';
   }, [activeDay]);
 
   // Monday, for the pieces that only ever spoke about a day: the saved draft
@@ -1037,6 +1048,48 @@ export default function Subscribe() {
     } finally {
       setPromoBusy(false);
     }
+  };
+
+  /**
+   * The first chosen dish, on any day, that the customer is allergic to.
+   *
+   * The server names them when it refuses the purchase, but only by name —
+   * and a name does not say which of seven days or which course it sits in.
+   * Worked out here instead, from the same catalogue the picker uses, so the
+   * answer is a place to go rather than a sentence to read.
+   */
+  const firstUnsafeChoice = useMemo(() => {
+    const byId = new Map(products.map((p) => [p._id, p]));
+
+    for (const day of DAY_KEYS.map((_, i) => i + 1)) {
+      for (const id of dayMeals[day] || []) {
+        const product = byId.get(id);
+        if (!product || !unsafeHits(product).length) continue;
+
+        const group = slotGroups.find((g) => g.items.some((p) => p._id === id));
+        return { day, productId: id, slot: group?.slot ?? '' };
+      }
+    }
+
+    return null;
+  }, [dayMeals, products, slotGroups, unsafeHits]);
+
+  /** Opens the day and course holding it, with the dish itself marked. */
+  const goToUnsafeChoice = () => {
+    setAllergyPrompt('');
+
+    const target = firstUnsafeChoice;
+    if (!target) return;
+
+    setHighlightId(target.productId);
+    pendingSlot.current = target.slot;
+
+    if (target.day === activeDay && step === STEP.MEALS) {
+      setSlotFilter(target.slot);
+      pendingSlot.current = '';
+    }
+
+    goTo({ step: STEP.MEALS, day: target.day });
   };
 
   const submit = async (acceptAllergens = false) => {
@@ -1759,7 +1812,11 @@ export default function Subscribe() {
                                 chosen={activeIds.includes(p._id)}
                                 blocked={Boolean(unsafe)}
                                 unsafe={unsafe}
-                                onToggle={() => toggleMeal(p, group)}
+                                marked={highlightId === p._id}
+                                onToggle={() => {
+                                  setHighlightId('');
+                                  toggleMeal(p, group);
+                                }}
                                 t={t}
                                 L={L}
                               />
@@ -2008,7 +2065,7 @@ export default function Subscribe() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setAllergyPrompt('')}
+                  onClick={goToUnsafeChoice}
                   className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-bold hover:border-primary transition-colors"
                 >
                   {t('allergyConfirmNo')}
@@ -2091,14 +2148,22 @@ export default function Subscribe() {
  * name. `blocked` is a course already full — refusing the tap and saying so
  * by going pale, rather than silently doing nothing.
  */
-function MealCard({ product, chosen, blocked, unsafe = null, onToggle, t, L }) {
+/**
+ * `marked` is the dish the customer was sent here to change — the one their
+ * allergy refused at the pay button. Without it they arrive on the right day
+ * and the right course and still have to work out which of a dozen cards the
+ * warning was about.
+ */
+function MealCard({ product, chosen, blocked, unsafe = null, marked = false, onToggle, t, L }) {
   return (
     <button
       type="button"
       disabled={blocked}
       onClick={onToggle}
       className={`text-left rounded-2xl border overflow-hidden transition-all ${
-        chosen
+        marked
+          ? 'border-error ring-2 ring-error/40 animate-pulse'
+          : chosen
           ? 'border-primary ring-1 ring-primary/20'
           : unsafe
           ? 'border-error/40 opacity-60 cursor-not-allowed'

@@ -133,8 +133,10 @@ export default function Signup() {
         gender: form.gender,
         goal: form.goal,
         activityLevel: form.activityLevel,
-        package: 'Free Trial',
-        duration: '1 month',
+        // No package here. Registering is not buying: the customer chooses a
+        // package and pays for it in the wizard, and sending "Free Trial"
+        // with every signup wrote a month's subscription on a package that
+        // does not exist.
       };
       await signup(data);
 
