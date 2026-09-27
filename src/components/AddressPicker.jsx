@@ -17,13 +17,19 @@ import { useAuth } from '../context/AuthContext';
 import {
   EMPTY_ADDRESS,
   LABELS,
-  areaName,
   format,
   removeAddress,
   hydrateFromAccount,
   saveAddress,
 } from '../utils/addressBook';
 import { blockingIssue, deliveryFor, zoneForArea } from '../utils/zones';
+import {
+  AREAS,
+  GOVERNORATES,
+  areasIn,
+  governorateOfArea,
+  placeName,
+} from '../data/kuwait';
 
 /**
  * Choosing where an order goes.
@@ -261,14 +267,70 @@ export default function AddressPicker({
 
 /** Adding or changing one address. Same fields, in the same order, as the app. */
 function AddressForm({ initial, zones, onCancel, onSave }) {
-  const { t } = useT();
+  const { t, isArabic } = useT();
   const [form, setForm] = useState({ ...EMPTY_ADDRESS, ...initial });
   const [error, setError] = useState('');
+
+  /*
+   * The governorate is asked for first and then the area inside it, the way
+   * an address is actually said here — one list of 85 places was a scroll
+   * through the whole country to find one neighbourhood.
+   *
+   * It is not stored. An address is still just its area id, and the area
+   * already knows which governorate it belongs to; keeping a second copy on
+   * every saved address would only give the two a way to disagree. Editing
+   * an existing address opens on the governorate its area implies.
+   */
+  const [governorate, setGovernorate] = useState(() =>
+    governorateOfArea(initial?.areaId),
+  );
 
   const set = (k, v) => {
     setForm((f) => ({ ...f, [k]: v }));
     setError('');
   };
+
+  const pickGovernorate = (id) => {
+    setGovernorate(id);
+    // The area belonged to the governorate being left behind.
+    setForm((f) => ({ ...f, areaId: '' }));
+    setError('');
+  };
+
+  /**
+   * Where we deliver.
+   *
+   * The zones are the served areas, and offering anywhere else only earns a
+   * refusal at "place order". Until the kitchen has configured a single zone
+   * the whole country counts as served — that is what the server does too —
+   * so an unconfigured deployment gets the full list rather than an empty
+   * menu it cannot get past.
+   */
+  const servedIds = useMemo(() => {
+    const ids = (zones || []).flatMap((z) => z.areas || []);
+    return ids.length ? new Set(ids) : null;
+  }, [zones]);
+
+  const areaOptions = useMemo(
+    () =>
+      areasIn(governorate).filter(
+        // An address saved before we stopped serving its area keeps it, so
+        // that editing the street does not silently move the customer.
+        (a) => !servedIds || servedIds.has(a.id) || a.id === form.areaId,
+      ),
+    [governorate, servedIds, form.areaId],
+  );
+
+  const governorateOptions = useMemo(
+    () =>
+      GOVERNORATES.map((g) => ({
+        ...g,
+        served:
+          !servedIds ||
+          AREAS.some((a) => a.governorate === g.id && servedIds.has(a.id)),
+      })),
+    [servedIds],
+  );
 
   /*
    * Not a form submit, and this must not become one again.
@@ -283,6 +345,10 @@ function AddressForm({ initial, zones, onCancel, onSave }) {
   const submit = (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
+    if (!governorate) {
+      setError(t('addressSelectGovernorate'));
+      return;
+    }
     if (!form.areaId) {
       setError(t('addressSelectArea'));
       return;
@@ -332,21 +398,43 @@ function AddressForm({ initial, zones, onCancel, onSave }) {
       </div>
 
       <div>
+        <label className="block text-xs font-semibold mb-1.5">
+          {t('addressGovernorate')}
+        </label>
+        <select
+          value={governorate}
+          onChange={(e) => pickGovernorate(e.target.value)}
+          className="w-full px-3 py-2.5 rounded-xl border border-border bg-bg text-sm focus:outline-none focus:border-primary"
+        >
+          <option value="">{t('addressSelectGovernorate')}</option>
+          {/* Unserved governorates are shown greyed rather than hidden: a
+              customer who cannot find their own assumes the list is broken,
+              where a disabled line says plainly that we do not deliver there
+              yet. */}
+          {governorateOptions.map((g) => (
+            <option key={g.id} value={g.id} disabled={!g.served}>
+              {placeName(g, isArabic) +
+                (g.served ? '' : ` — ${t('addressNotServed')}`)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
         <label className="block text-xs font-semibold mb-1.5">{t('addressArea')}</label>
         <select
           value={form.areaId}
           onChange={(e) => set('areaId', e.target.value)}
-          className="w-full px-3 py-2.5 rounded-xl border border-border bg-bg text-sm focus:outline-none focus:border-primary"
+          disabled={!governorate}
+          className="w-full px-3 py-2.5 rounded-xl border border-border bg-bg text-sm focus:outline-none focus:border-primary disabled:opacity-50"
         >
-          <option value="">{t('addressSelectArea')}</option>
-          {zones.map((z) => (
-            <optgroup key={z._id} label={z.name}>
-              {(z.areas || []).map((a) => (
-                <option key={a} value={a}>
-                  {areaName(a)}
-                </option>
-              ))}
-            </optgroup>
+          <option value="">
+            {governorate ? t('addressSelectArea') : t('addressSelectGovernorate')}
+          </option>
+          {areaOptions.map((a) => (
+            <option key={a.id} value={a.id}>
+              {placeName(a, isArabic)}
+            </option>
           ))}
         </select>
         <p className="text-[11px] text-text-secondary mt-1">{t('addressKuwaitOnly')}</p>
