@@ -330,9 +330,12 @@ export default function CartDrawer() {
             <div className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-primary" />
               <h2 className="text-lg font-bold text-text">
-                {step === "cart" && `Your Cart (${cartItemCount})`}
-                {step === "checkout" && "Checkout"}
-                {step === "success" && "Order Confirmed!"}
+                {/* Translated like everything else on this screen. These
+                    three were written in English by hand, so an Arabic
+                    customer read "Your Cart (4)" above their own basket. */}
+                {step === "cart" && `${t('cartTitle')} (${cartItemCount})`}
+                {step === "checkout" && t('checkoutTitle')}
+                {step === "success" && t('checkoutOrderPlaced')}
               </h2>
             </div>
             <button
@@ -364,13 +367,16 @@ export default function CartDrawer() {
                       <h3 className="text-base font-bold text-text">{t('cartEmpty')}</h3>
                       <p className="text-xs text-text-secondary mt-1">{t('cartEmptyPrompt')}</p>
                     </div>
+                    {/* Home, not the menu: an empty cart is someone at the
+                        start of a visit, and the home page is where the
+                        packages, the offers and the menu all lead from. */}
                     <button
                       onClick={() => {
                         closeCart();
-                        navigate("/menu");
+                        navigate("/");
                       }}
                       className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-light transition-colors"
-                    >{t('cartBrowseMenu')}</button>
+                    >{t('shopNow')}</button>
                   </div>
                 ) : (
                   <div className="space-y-3">
