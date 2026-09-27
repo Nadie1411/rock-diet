@@ -1,11 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { cartService } from '../services/cartService';
 import { useAuth } from './AuthContext';
+import { useLanguage } from './LanguageContext';
 
 const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const { isAuthenticated } = useAuth();
+  // The failure messages below are shown to the customer, so they are
+  // translated. Without this they read `t` from nowhere at all and throw a
+  // ReferenceError instead — which is what a signed-out customer got for
+  // pressing "add", in place of being asked to sign in.
+  const { t } = useLanguage();
 
   // These functions get captured by callers — the auth gate replays an add
   // that was created while signed out, and the copy it holds closed over
@@ -44,9 +50,43 @@ export function CartProvider({ children }) {
     refreshCart();
   }, [refreshCart]);
 
+  /**
+   * The drawer opens when it is asked for, and not because something landed
+   * in the cart.
+   *
+   * Adding used to open it every single time. That suits the customer buying
+   * one thing and nobody else: choosing four meals meant four drawers to
+   * close, each one thrown over the menu being chosen from. What the drawer
+   * was doing by accident — confirming the add — `lastAdded` does instead,
+   * through the strip at the bottom of the screen.
+   *
+   * Flows that really are finished still open it themselves: ordering a box,
+   * or reordering a past order.
+   */
   const openCart = () => setIsOpen(true);
   const closeCart = () => setIsOpen(false);
   const toggleCart = () => setIsOpen((prev) => !prev);
+
+  /**
+   * The dish just added, for the strip that says so — cleared on a timer.
+   *
+   * The name is taken from the cart the server sends back rather than from
+   * the caller: callers have only an id, while the line it lands on carries
+   * the dish populated, and in both languages.
+   */
+  const [lastAdded, setLastAdded] = useState(null);
+  const dismissLastAdded = useCallback(() => setLastAdded(null), []);
+
+  const noteAdded = (nextCart, productId) => {
+    const line = (nextCart?.items || []).find(
+      (item) => (item.productId?._id || item.productId) === productId,
+    );
+    setLastAdded({
+      id: productId,
+      name: line?.productId?.name ?? null,
+      at: Date.now(),
+    });
+  };
 
   const addToCart = async (productId, quantity = 1, addons = [], packageSlug) => {
     if (!authed.current) {
@@ -55,8 +95,9 @@ export function CartProvider({ children }) {
     try {
       setError('');
       const res = await cartService.addToCart(productId, quantity, addons, packageSlug);
-      setCart(res.data?.cart ?? res.data);
-      openCart();
+      const next = res.data?.cart ?? res.data;
+      setCart(next);
+      noteAdded(next, productId);
       return res;
     } catch (err) {
       setError(err.message || t('cartAddFailed'));
@@ -72,7 +113,7 @@ export function CartProvider({ children }) {
       setError('');
       const res = await cartService.addOfferToCart(offerId);
       setCart(res.data?.cart ?? res.data);
-      openCart();
+      setLastAdded({ id: offerId, name: null, at: Date.now() });
       return res;
     } catch (err) {
       setError(err.message || t('cartAddOfferFailed'));
@@ -141,6 +182,8 @@ export function CartProvider({ children }) {
     error,
     cartItemCount,
     subtotal,
+    lastAdded,
+    dismissLastAdded,
     openCart,
     closeCart,
     toggleCart,

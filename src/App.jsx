@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
+import CartToast from './components/CartToast';
 import BottomNav from './components/BottomNav';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
@@ -140,6 +141,7 @@ function App() {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
+              <CartToast />
               <CustomerServiceButton />
               <SiteFooter />
 

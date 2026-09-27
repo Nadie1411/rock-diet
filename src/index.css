@@ -74,6 +74,31 @@ body {
   animation: bounce-slow 3s ease-in-out infinite;
 }
 
+/* The "added to cart" strip, coming up from the bottom of the screen rather
+   than appearing on top of it — the motion is what tells you something new
+   arrived while you are still looking at the menu. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in {
+    animation: none;
+  }
+}
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
